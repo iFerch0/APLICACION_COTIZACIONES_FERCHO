@@ -159,7 +159,7 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="bg-purple-100 text-purple-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
+                <div className="bg-[#24aceb]/10 text-[#24aceb] w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
                   {index + 1}
                 </div>
                 <h3 className="font-semibold text-gray-700">Configuración del Producto</h3>
@@ -283,9 +283,9 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
                   <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Costo Unit. Neto</p>
                   <p className="font-medium text-gray-600">${item.costoUnitarioFinal.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</p>
                 </div>
-                <div className="text-right bg-purple-50 px-4 py-2 rounded-lg border border-purple-100">
-                  <p className="text-xs text-purple-600 uppercase tracking-widest mb-1">Subtotal Línea</p>
-                  <p className="text-xl font-black text-purple-900">${item.subtotalLinea.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</p>
+                <div className="text-right bg-[#24aceb]/5 px-4 py-2 rounded-lg border border-[#24aceb]/20">
+                  <p className="text-xs text-[#24aceb] uppercase tracking-widest mb-1">Subtotal Línea</p>
+                  <p className="text-xl font-black text-slate-900">${item.subtotalLinea.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
             </div>
@@ -295,8 +295,8 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
 
       <div className="bg-slate-900 text-white p-8 rounded-2xl shadow-xl flex flex-col lg:flex-row justify-between gap-10 relative overflow-hidden">
         {/* Decoración de fondo */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 translate-y-1/2 -translate-x-1/2"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#24aceb] rounded-full mix-blend-multiply filter blur-3xl opacity-20 -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#24aceb] rounded-full mix-blend-multiply filter blur-3xl opacity-10 translate-y-1/2 -translate-x-1/2"></div>
         
         <div className="flex flex-col gap-6 max-w-sm relative z-10">
           <div>
@@ -365,7 +365,7 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
             )}
           </div>
 
-          <div className="flex justify-between items-end text-2xl font-black bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent pt-2">
+          <div className="flex justify-between items-end text-2xl font-black text-[#24aceb] pt-2">
             <span>TOTAL:</span>
             <span>
               ${totales.totalFinal.toLocaleString("es-CO", { minimumFractionDigits: 2 })}
@@ -401,7 +401,7 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
                 }
               }}
               disabled={isSaving}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white p-3.5 rounded-xl font-bold transition disabled:opacity-50 shadow-lg shadow-blue-900/50"
+              className="w-full bg-[#24aceb] hover:bg-[#24aceb]/90 text-white p-3.5 rounded-xl font-bold transition disabled:opacity-50 shadow-lg shadow-[#24aceb]/20"
             >
               {isSaving ? "Procesando Sistema..." : `Guardar en Base de Datos`}
             </button>
