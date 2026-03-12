@@ -89,54 +89,56 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
 
   return (
     <div className="space-y-8">
-      <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-2 h-full bg-blue-500"></div>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">1. Información del Cliente</h2>
+      <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <svg className="w-6 h-6 text-[#24aceb]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+          <h3 className="text-lg font-bold">Información del Cliente</h3>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold text-gray-600">Nombres del Cliente</Label>
-            <Input 
-               className="h-11 bg-gray-50/50"
-               placeholder="Ej. Juan Pérez" 
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Cliente</span>
+            <input 
+               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-950 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none h-12 px-4 text-base transition-colors"
+               placeholder="Ej: Juan Pérez" 
                value={clienteInfo.nombres}
                onChange={(e) => setClienteInfo({...clienteInfo, nombres: e.target.value})}
+               type="text"
             />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold text-gray-600">Correo Electrónico</Label>
-            <Input 
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Email de Contacto</span>
+            <input 
                type="email" 
-               className="h-11 bg-gray-50/50"
-               placeholder="cliente@correo.com" 
+               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-950 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none h-12 px-4 text-base transition-colors"
+               placeholder="cliente@empresa.com" 
                value={clienteInfo.email}
                onChange={(e) => setClienteInfo({...clienteInfo, email: e.target.value})}
             />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label className="text-sm font-semibold text-gray-600">Notas y Observaciones</Label>
-            <Textarea 
-               className="bg-gray-50/50 min-h-[100px]"
-               placeholder="Escribe aquí consideraciones especiales de la venta..." 
+          </label>
+          <label className="flex flex-col gap-2 md:col-span-2">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Notas Internas o Comentarios</span>
+            <textarea 
+               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-950 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none p-4 text-base resize-none transition-colors min-h-[100px]"
+               placeholder="Detalles adicionales sobre los términos o condiciones..." 
                value={clienteInfo.notas}
                onChange={(e) => setClienteInfo({...clienteInfo, notas: e.target.value})}
             />
-          </div>
+          </label>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-2 h-full bg-purple-500"></div>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">2. Detalle de Ítems</h2>
-            <p className="text-sm text-gray-500 mt-1">Ingresa los productos y calcula todos los cargos asociados.</p>
+      <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-2">
+            <svg className="w-6 h-6 text-[#24aceb]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+            <h3 className="text-lg font-bold">Detalle de Ítems</h3>
           </div>
           <button
             onClick={agregarItem}
-            className="flex items-center gap-2 bg-purple-600 text-white px-5 py-2.5 rounded-xl hover:bg-purple-700 transition font-medium shadow-sm hover:shadow-md"
+            className="flex items-center gap-2 text-[#24aceb] font-bold text-sm hover:bg-[#24aceb]/5 px-3 py-2 rounded-lg transition-colors"
           >
             <Plus size={18} />
-            Añadir Producto
+            Añadir Ítem
           </button>
         </div>
 
@@ -289,7 +291,7 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
       <div className="bg-slate-900 text-white p-8 rounded-2xl shadow-xl flex flex-col lg:flex-row justify-between gap-10 relative overflow-hidden">
         {/* Decoración de fondo */}
