@@ -41,6 +41,8 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
       aplicaTax: false,
       taxUnitario: 0,
       envioUnitario: 0,
+      promocionEnvioUnitario: 0,
+      importacionUnitario: 0,
       aplicaAmazon: false,
     },
   ]);
@@ -58,6 +60,8 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
         aplicaTax: false,
         taxUnitario: 0,
         envioUnitario: 0,
+        promocionEnvioUnitario: 0,
+        importacionUnitario: 0,
         aplicaAmazon: false,
       },
     ]);
@@ -131,11 +135,11 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
         <div className="min-w-[800px]">
           {/* Header */}
           <div className="grid grid-cols-12 gap-2 text-sm font-semibold text-gray-600 bg-gray-50 p-3 rounded-lg mb-2">
-            <div className="col-span-3">Descripción</div>
+            <div className="col-span-2">Descripción</div>
             <div className="col-span-1">Cant.</div>
             <div className="col-span-2">Precio Base ($)</div>
-            <div className="col-span-2">Tax y Envío</div>
-            <div className="col-span-1 text-center">Amazon</div>
+            <div className="col-span-3">Cargos Adic. ($)</div>
+            <div className="col-span-1 text-center">Garantía</div>
             <div className="col-span-2 text-right">Subtotal ($)</div>
             <div className="col-span-1 text-center">Acción</div>
           </div>
@@ -146,7 +150,7 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
                 key={item.id}
                 className="grid grid-cols-12 gap-2 items-start border-b pb-3 last:border-0"
               >
-                <div className="col-span-3">
+                <div className="col-span-2">
                   <Input
                     value={item.descripcion}
                     onChange={(e) => updateItem(item.id, "descripcion", e.target.value)}
@@ -172,20 +176,20 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
                     }
                   />
                 </div>
-                <div className="col-span-2 space-y-2">
+                <div className="col-span-3 space-y-2 text-xs">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id={`tax-${item.id}`}
                       checked={item.aplicaTax}
                       onCheckedChange={(c) => updateItem(item.id, "aplicaTax", !!c)}
                     />
-                    <Label htmlFor={`tax-${item.id}`} className="text-xs">
+                    <Label htmlFor={`tax-${item.id}`} className="text-xs w-10">
                       ¿Tax?
                     </Label>
                     {item.aplicaTax && (
                       <Input
                         type="number"
-                        className="h-7 w-20 text-xs"
+                        className="h-7 w-16 text-xs"
                         placeholder="Valor"
                         value={item.taxUnitario || ""}
                         onChange={(e) => updateItem(item.id, "taxUnitario", Number(e.target.value))}
@@ -193,13 +197,33 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
                     )}
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Label className="text-xs">Envío:</Label>
+                    <Label className="text-xs w-12 text-gray-700">Envío:</Label>
                     <Input
                       type="number"
                       className="h-7 w-20 text-xs"
                       placeholder="$"
                       value={item.envioUnitario || ""}
                       onChange={(e) => updateItem(item.id, "envioUnitario", Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Label className="text-xs w-12 text-blue-700">Promo:</Label>
+                    <Input
+                      type="number"
+                      className="h-7 w-20 text-xs"
+                      placeholder="-$"
+                      value={item.promocionEnvioUnitario || ""}
+                      onChange={(e) => updateItem(item.id, "promocionEnvioUnitario", Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Label className="text-xs w-12 text-gray-700">Import:</Label>
+                    <Input
+                      type="number"
+                      className="h-7 w-20 text-xs"
+                      placeholder="$"
+                      value={item.importacionUnitario || ""}
+                      onChange={(e) => updateItem(item.id, "importacionUnitario", Number(e.target.value))}
                     />
                   </div>
                 </div>
@@ -268,11 +292,15 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
             <span>${totales.totalTax.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
           </div>
           <div className="flex justify-between text-gray-600 text-sm">
-            <span>Total Envío</span>
-            <span>${totales.totalEnvio.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
+            <span>Total Envío Neto</span>
+            <span>${(totales.totalEnvio - totales.totalPromocionEnvio).toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
           </div>
           <div className="flex justify-between text-gray-600 text-sm">
-            <span>Total Amazon (2.25%)</span>
+            <span>Total Importación</span>
+            <span>${totales.totalImportacion.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between text-gray-600 text-sm">
+            <span>Total Garantía (2.25%)</span>
             <span>${totales.totalAmazon.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
           </div>
           {aplica4x1000Global && (

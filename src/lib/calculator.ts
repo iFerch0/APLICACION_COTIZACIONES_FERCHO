@@ -6,6 +6,8 @@ export interface ItemInput {
   aplicaTax: boolean;
   taxUnitario: number; // Ingresado manualmente si aplica
   envioUnitario: number;
+  promocionEnvioUnitario: number; // Restado del Envío
+  importacionUnitario: number; // Cargos de importación adicionales
   aplicaAmazon: boolean; // Automático si es true -> precio * 0.0225
 }
 
@@ -19,6 +21,8 @@ export interface DocumentTotals {
   subtotal: number;
   totalTax: number;
   totalEnvio: number;
+  totalPromocionEnvio: number;
+  totalImportacion: number;
   totalAmazon: number;
   total4x1000: number;
   totalFinal: number;
@@ -29,10 +33,16 @@ export const IMPUESTO_4X1000_RATE = 0.004;
 
 export function calcularItem(item: ItemInput): ItemCalculated {
   const tax = item.aplicaTax ? item.taxUnitario : 0;
-  const amazon = item.aplicaAmazon ? item.precioUnitarioBase * AMAZON_RATE : 0;
-  const envio = item.envioUnitario || 0;
+  const envioBase = item.envioUnitario || 0;
+  const promoEnvio = item.promocionEnvioUnitario || 0;
+  const envioNeto = envioBase - promoEnvio;
+  const importacion = item.importacionUnitario || 0;
+  
+  // Amazon Garantia se cobra sobre el Precio Base sumado a Cargos de importación, envíos e impuestos.
+  const baseGarantia = item.precioUnitarioBase + tax + envioNeto + importacion;
+  const amazon = item.aplicaAmazon ? baseGarantia * AMAZON_RATE : 0;
 
-  const costoUnitarioFinal = item.precioUnitarioBase + tax + amazon + envio;
+  const costoUnitarioFinal = item.precioUnitarioBase + tax + amazon + envioNeto + importacion;
   const subtotalLinea = costoUnitarioFinal * item.cantidad;
 
   return {
@@ -50,12 +60,16 @@ export function calcularTotalesDocumento(
   let subtotal = 0;
   let totalTax = 0;
   let totalEnvio = 0;
+  let totalPromocionEnvio = 0;
+  let totalImportacion = 0;
   let totalAmazon = 0;
 
   for (const item of items) {
     subtotal += item.subtotalLinea;
     totalTax += (item.aplicaTax ? item.taxUnitario : 0) * item.cantidad;
     totalEnvio += (item.envioUnitario || 0) * item.cantidad;
+    totalPromocionEnvio += (item.promocionEnvioUnitario || 0) * item.cantidad;
+    totalImportacion += (item.importacionUnitario || 0) * item.cantidad;
     totalAmazon += item.amazonUnitarioCalculado * item.cantidad;
   }
 
@@ -67,6 +81,8 @@ export function calcularTotalesDocumento(
     subtotal,
     totalTax,
     totalEnvio,
+    totalPromocionEnvio,
+    totalImportacion,
     totalAmazon,
     total4x1000,
     totalFinal,

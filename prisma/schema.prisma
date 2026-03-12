@@ -45,11 +45,13 @@ model CommercialDocument {
   observaciones  String?
   subtotal       Float
   totalTax       Float
-  totalEnvio     Float
-  totalAmazon    Float
-  total4x1000    Float
-  totalFinal     Float
-  estado         String                   @default("BORRADOR")
+  totalEnvio          Float
+  totalPromocionEnvio Float                    @default(0)
+  totalAmazon         Float
+  totalImportacion    Float                    @default(0)
+  total4x1000         Float
+  totalFinal          Float
+  estado              String                   @default("BORRADOR")
   currency       String                   @default("COP")
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
@@ -68,6 +70,8 @@ model CommercialDocumentItem {
   aplicaTax          Boolean            @default(false)
   taxUnitario        Float              @default(0)
   envioUnitario      Float              @default(0)
+  promocionEnvioUnitario Float          @default(0)
+  importacionUnitario Float             @default(0)
   aplicaAmazon       Boolean            @default(false)
   amazonUnitario     Float              @default(0)
   costoUnitarioFinal Float

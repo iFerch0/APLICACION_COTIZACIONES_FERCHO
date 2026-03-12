@@ -40,6 +40,8 @@ export async function saveDocument(data: {
           aplicaTax: item.aplicaTax,
           taxUnitario: item.taxUnitario,
           envioUnitario: item.envioUnitario,
+          promocionEnvioUnitario: item.promocionEnvioUnitario,
+          importacionUnitario: item.importacionUnitario,
           aplicaAmazon: item.aplicaAmazon,
           amazonUnitario: item.amazonUnitarioCalculado,
           costoUnitarioFinal: item.costoUnitarioFinal,

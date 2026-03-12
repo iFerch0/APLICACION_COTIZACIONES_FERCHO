@@ -130,7 +130,7 @@ export const CotizacionPDF = ({ formato, cliente, items, totales, aplica4x1000Gl
               <Text style={styles.colDesc}>Descripción</Text>
               <Text style={styles.colCant}>Cant.</Text>
               <Text style={styles.colPrice}>P. Unit Base</Text>
-              <Text style={styles.colPrice}>Tax/Envío/Amz</Text>
+              <Text style={styles.colPrice}>Tax/Env/Imp/Gar</Text>
               <Text style={styles.colTotal}>Subtotal</Text>
             </View>
             {items.map((item, i) => (
@@ -140,8 +140,9 @@ export const CotizacionPDF = ({ formato, cliente, items, totales, aplica4x1000Gl
                 <Text style={styles.colPrice}>{formatCurrency(item.precioUnitarioBase)}</Text>
                 <View style={styles.colPrice}>
                    {item.aplicaTax && <Text style={{ fontSize: 8 }}>Tax: {formatCurrency(item.taxUnitario)}</Text>}
-                   {(item.envioUnitario > 0) && <Text style={{ fontSize: 8 }}>Envío: {formatCurrency(item.envioUnitario)}</Text>}
-                   {item.aplicaAmazon && <Text style={{ fontSize: 8 }}>Amz: 2.25%</Text>}
+                   {(item.envioUnitario > 0 || item.promocionEnvioUnitario > 0) && <Text style={{ fontSize: 8 }}>Env: {formatCurrency(item.envioUnitario - item.promocionEnvioUnitario)}</Text>}
+                   {(item.importacionUnitario > 0) && <Text style={{ fontSize: 8 }}>Imp: {formatCurrency(item.importacionUnitario)}</Text>}
+                   {item.aplicaAmazon && <Text style={{ fontSize: 8 }}>Gar: 2.25%</Text>}
                 </View>
                 <Text style={styles.colTotal}>{formatCurrency(item.subtotalLinea)}</Text>
               </View>
@@ -192,11 +193,15 @@ export const CotizacionPDF = ({ formato, cliente, items, totales, aplica4x1000Gl
                 <Text>{formatCurrency(totales.totalTax)}</Text>
               </View>
               <View style={styles.totalRow}>
-                <Text>Total Envío:</Text>
-                <Text>{formatCurrency(totales.totalEnvio)}</Text>
+                <Text>Total Envío (Neto):</Text>
+                <Text>{formatCurrency(totales.totalEnvio - totales.totalPromocionEnvio)}</Text>
               </View>
               <View style={styles.totalRow}>
-                <Text>Total Amazon:</Text>
+                <Text>Total Importación:</Text>
+                <Text>{formatCurrency(totales.totalImportacion)}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text>Garantía:</Text>
                 <Text>{formatCurrency(totales.totalAmazon)}</Text>
               </View>
             </>
