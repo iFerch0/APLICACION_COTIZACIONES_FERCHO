@@ -56,3 +56,31 @@ export async function saveDocument(data: {
 
   return { success: true, document: result };
 }
+
+export async function getDocuments(params?: {
+  tipo?: "COTIZACION" | "FACTURA";
+  search?: string;
+  limit?: number;
+}) {
+  return await prisma.commercialDocument.findMany({
+    where: {
+      ...(params?.tipo ? { tipo: params.tipo } : {}),
+      ...(params?.search
+        ? {
+            OR: [
+              { numero: { contains: params.search } },
+              { customer: { nombres: { contains: params.search } } },
+            ],
+          }
+        : {}),
+    },
+    include: {
+      customer: { select: { id: true, nombres: true, email: true } },
+      _count: { select: { items: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    ...(params?.limit ? { take: params.limit } : {}),
+  });
+}
+
+export type DocumentListItem = Awaited<ReturnType<typeof getDocuments>>[number];
