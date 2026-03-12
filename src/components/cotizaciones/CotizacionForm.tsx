@@ -16,12 +16,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+import { searchCustomers, createCustomer } from "@/app/actions/customers";
+import { saveDocument } from "@/app/actions/documents";
+
 const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer"), {
   ssr: false,
 });
 
 export default function CotizacionForm() {
   const [clienteInfo, setClienteInfo] = useState({ nombres: "", email: "", notas: "" });
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [formatoPDF, setFormatoPDF] = useState<"completo" | "resumido" | "concatenado">("completo");
   const [items, setItems] = useState<ItemInput[]>([
     {
@@ -280,7 +285,39 @@ export default function CotizacionForm() {
             </span>
           </div>
 
-          <div className="pt-6">
+          <div className="pt-6 space-y-3">
+            <button 
+              onClick={async () => {
+                if (!clienteInfo.nombres) return alert("Ingresa el nombre del cliente.");
+                setIsSaving(true);
+                try {
+                  const clienteDb = await createCustomer({ 
+                    nombres: clienteInfo.nombres, 
+                    email: clienteInfo.email, 
+                    notas: clienteInfo.notas 
+                  });
+                  setClienteId(clienteDb.id);
+                  const doc = await saveDocument({
+                    tipo: "COTIZACION",
+                    clienteId: clienteDb.id,
+                    items: calculatedItems,
+                    totales: totales,
+                    observaciones: clienteInfo.notas
+                  });
+                  if(doc.success) {
+                     alert("Cotización guardada con formato: " + doc.document.numero);
+                  }
+                } catch (e) {
+                  alert("Error al guardar.");
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              disabled={isSaving}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold transition disabled:opacity-50"
+            >
+              {isSaving ? "Guardando..." : "Guardar Cotización"}
+            </button>
             <Dialog>
               <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg font-bold transition">
                 <Printer size={20} />
