@@ -38,8 +38,9 @@ export function calcularItem(item: ItemInput): ItemCalculated {
   const envioNeto = envioBase - promoEnvio;
   const importacion = item.importacionUnitario || 0;
   
-  // Amazon Garantia se cobra sobre el Precio Base sumado a Cargos de importación, envíos e impuestos.
-  const baseGarantia = item.precioUnitarioBase + tax + envioNeto + importacion;
+  // Amazon Garantia se cobra sobre el Precio Base sumado a Cargos de importación, e impuestos.
+  // IMPORTANTE: Amazon calcula la garantía incluyendo el envío BRUTO (envioBase), ANTES de aplicar cualquier promoción (Free Shipping).
+  const baseGarantia = item.precioUnitarioBase + tax + envioBase + importacion;
   const amazon = item.aplicaAmazon ? baseGarantia * AMAZON_RATE : 0;
 
   const costoUnitarioFinal = item.precioUnitarioBase + tax + amazon + envioNeto + importacion;
