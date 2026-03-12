@@ -1,0 +1,87 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model SellerProfile {
+  id             String               @id @default(cuid())
+  nombre         String
+  profesion      String?
+  direccion      String?
+  celular        String?
+  email          String?
+  identificacion String?
+  activo         Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  documents      CommercialDocument[]
+}
+
+model Customer {
+  id             String               @id @default(cuid())
+  nombres        String
+  apellidos      String?
+  direccion      String?
+  celular        String?
+  email          String?
+  identificacion String?
+  notas          String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  documents      CommercialDocument[]
+}
+
+model CommercialDocument {
+  id             String                   @id @default(cuid())
+  tipo           String // "COTIZACION" o "FACTURA"
+  numero         String                   @unique
+  fecha          DateTime                 @default(now())
+  sellerId       String
+  customerId     String
+  observaciones  String?
+  subtotal       Float
+  totalTax       Float
+  totalEnvio     Float
+  totalAmazon    Float
+  total4x1000    Float
+  totalFinal     Float
+  estado         String                   @default("BORRADOR")
+  currency       String                   @default("COP")
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  seller         SellerProfile            @relation(fields: [sellerId], references: [id])
+  customer       Customer                 @relation(fields: [customerId], references: [id])
+  items          CommercialDocumentItem[]
+}
+
+model CommercialDocumentItem {
+  id                 String             @id @default(cuid())
+  documentId         String
+  orden              Int
+  descripcion        String
+  cantidad           Int
+  precioUnitarioBase Float
+  aplicaTax          Boolean            @default(false)
+  taxUnitario        Float              @default(0)
+  envioUnitario      Float              @default(0)
+  aplicaAmazon       Boolean            @default(false)
+  amazonUnitario     Float              @default(0)
+  costoUnitarioFinal Float
+  subtotalLinea      Float
+  aplica4x1000       Boolean            @default(false)
+  valor4x1000Linea   Float              @default(0)
+  totalLinea         Float
+  document           CommercialDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model AppSetting {
+  id          String   @id @default(cuid())
+  clave       String   @unique
+  valor       String
+  descripcion String?
+  updatedAt   DateTime @updatedAt
+}
