@@ -3,6 +3,7 @@
 import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
 import { CotizacionPDF } from "./CotizacionPDF";
 import { ItemCalculated, DocumentTotals } from "@/lib/calculator";
+import type { SellerData } from "@/app/actions/seller";
 
 interface ClientPDFViewerProps {
   formato: "completo" | "resumido" | "concatenado";
@@ -15,6 +16,7 @@ interface ClientPDFViewerProps {
   totales: DocumentTotals;
   aplica4x1000Global: boolean;
   tipoDocumento: "COTIZACION" | "FACTURA";
+  seller?: SellerData | null;
 }
 
 export default function ClientPDFViewer(props: ClientPDFViewerProps) {

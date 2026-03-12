@@ -1,8 +1,10 @@
 import CotizacionForm from "@/components/cotizaciones/CotizacionForm";
 import Link from "next/link";
 import { ChevronRight, Home, Receipt } from "lucide-react";
+import { getSellerProfile } from "@/app/actions/seller";
 
-export default function NuevaFacturaPage() {
+export default async function NuevaFacturaPage() {
+  const seller = await getSellerProfile();
   return (
     <div className="fade-up space-y-6">
 
@@ -37,7 +39,7 @@ export default function NuevaFacturaPage() {
         </Link>
       </div>
 
-      <CotizacionForm tipoDocumento="FACTURA" />
+      <CotizacionForm tipoDocumento="FACTURA" seller={seller} />
     </div>
   );
 }

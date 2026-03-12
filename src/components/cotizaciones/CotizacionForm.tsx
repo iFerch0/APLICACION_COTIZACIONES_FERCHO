@@ -35,6 +35,7 @@ const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer")
 
 export interface DocumentFormProps {
   tipoDocumento?: "COTIZACION" | "FACTURA";
+  seller?: import("@/app/actions/seller").SellerData | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -128,6 +129,7 @@ function LineItem({
 
 export default function CotizacionForm({
   tipoDocumento = "COTIZACION",
+  seller,
 }: DocumentFormProps) {
   const [clienteInfo, setClienteInfo] = useState({ nombres: "", email: "", notas: "" });
   const [isSaving, setIsSaving] = useState(false);
@@ -898,6 +900,7 @@ export default function CotizacionForm({
                             totales={totales}
                             aplica4x1000Global={aplica4x1000Global}
                             tipoDocumento={tipoDocumento}
+                            seller={seller}
                           />
                         </div>
                       </div>
@@ -983,6 +986,7 @@ export default function CotizacionForm({
                             totales={totales}
                             aplica4x1000Global={aplica4x1000Global}
                             tipoDocumento={tipoDocumento}
+                            seller={seller}
                           />
                         </div>
                       </div>

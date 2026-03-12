@@ -4,15 +4,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { FileText, Receipt, LayoutDashboard, Menu, X, Plus, Sun, Moon } from "lucide-react";
-
-import { FolderOpen } from "lucide-react";
+import { FileText, Receipt, LayoutDashboard, Menu, X, Plus, Sun, Moon, FolderOpen, Settings } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Inicio", icon: LayoutDashboard },
   { href: "/documentos", label: "Documentos", icon: FolderOpen },
   { href: "/cotizaciones/nueva", label: "Cotización", icon: FileText },
   { href: "/facturas/nueva", label: "Factura", icon: Receipt },
+  { href: "/configuracion", label: "Configuración", icon: Settings },
 ];
 
 function ThemeToggle() {
