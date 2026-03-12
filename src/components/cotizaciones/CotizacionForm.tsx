@@ -1,14 +1,28 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Plus, Trash2, Printer } from "lucide-react";
 import { ItemInput, calcularItem, calcularTotalesDocumento } from "@/lib/calculator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer"), {
+  ssr: false,
+});
 
 export default function CotizacionForm() {
+  const [clienteInfo, setClienteInfo] = useState({ nombres: "", email: "", notas: "" });
+  const [formatoPDF, setFormatoPDF] = useState<"completo" | "resumido" | "concatenado">("completo");
   const [items, setItems] = useState<ItemInput[]>([
     {
       id: "1",
@@ -44,7 +58,11 @@ export default function CotizacionForm() {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const updateItem = (id: string, field: keyof ItemInput, value: any) => {
+  const updateItem = <K extends keyof ItemInput>(
+    id: string,
+    field: K,
+    value: ItemInput[K]
+  ) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
@@ -63,15 +81,28 @@ export default function CotizacionForm() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Nombres del Cliente</Label>
-            <Input placeholder="Ej. Juan Pérez" />
+            <Input 
+               placeholder="Ej. Juan Pérez" 
+               value={clienteInfo.nombres}
+               onChange={(e) => setClienteInfo({...clienteInfo, nombres: e.target.value})}
+            />
           </div>
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input type="email" placeholder="cliente@correo.com" />
+            <Input 
+               type="email" 
+               placeholder="cliente@correo.com" 
+               value={clienteInfo.email}
+               onChange={(e) => setClienteInfo({...clienteInfo, email: e.target.value})}
+            />
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Notas</Label>
-            <Textarea placeholder="Observaciones adicionales" />
+            <Textarea 
+               placeholder="Observaciones adicionales" 
+               value={clienteInfo.notas}
+               onChange={(e) => setClienteInfo({...clienteInfo, notas: e.target.value})}
+            />
           </div>
         </div>
       </div>
@@ -101,7 +132,7 @@ export default function CotizacionForm() {
           </div>
 
           <div className="space-y-3">
-            {calculatedItems.map((item, index) => (
+            {calculatedItems.map((item) => (
               <div
                 key={item.id}
                 className="grid grid-cols-12 gap-2 items-start border-b pb-3 last:border-0"
@@ -247,6 +278,41 @@ export default function CotizacionForm() {
             <span className="text-blue-700">
               ${totales.totalFinal.toLocaleString("es-CO", { minimumFractionDigits: 2 })}
             </span>
+          </div>
+
+          <div className="pt-6">
+            <Dialog>
+              <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg font-bold transition">
+                <Printer size={20} />
+                Generar Previsualización PDF
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Previsualización del Documento</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-4 bg-gray-50 p-4 border rounded-lg">
+                    <Label className="font-semibold">Seleccionar Formato:</Label>
+                    <select 
+                      className="border p-2 rounded-md bg-white text-sm"
+                      value={formatoPDF}
+                      onChange={(e) => setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")}
+                    >
+                      <option value="completo">Completo (Con precios transparentes y columnas)</option>
+                      <option value="resumido">Resumido (Costo Unitario Final unificado)</option>
+                      <option value="concatenado">Concatenado (Solo Texto, estilo Excel actual)</option>
+                    </select>
+                  </div>
+                  <ClientPDFViewer 
+                    formato={formatoPDF} 
+                    cliente={clienteInfo} 
+                    items={calculatedItems} 
+                    totales={totales} 
+                    aplica4x1000Global={aplica4x1000Global} 
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </div>
