@@ -23,7 +23,11 @@ const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer")
   ssr: false,
 });
 
-export default function CotizacionForm() {
+export interface DocumentFormProps {
+  tipoDocumento?: "COTIZACION" | "FACTURA";
+}
+
+export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: DocumentFormProps) {
   const [clienteInfo, setClienteInfo] = useState({ nombres: "", email: "", notas: "" });
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -298,14 +302,14 @@ export default function CotizacionForm() {
                   });
                   setClienteId(clienteDb.id);
                   const doc = await saveDocument({
-                    tipo: "COTIZACION",
+                    tipo: tipoDocumento,
                     clienteId: clienteDb.id,
                     items: calculatedItems,
                     totales: totales,
                     observaciones: clienteInfo.notas
                   });
                   if(doc.success) {
-                     alert("Cotización guardada con formato: " + doc.document.numero);
+                     alert(`${tipoDocumento === "COTIZACION" ? "Cotización" : "Factura"} guardada con formato: ` + doc.document.numero);
                   }
                 } catch (e) {
                   alert("Error al guardar.");
@@ -316,7 +320,7 @@ export default function CotizacionForm() {
               disabled={isSaving}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold transition disabled:opacity-50"
             >
-              {isSaving ? "Guardando..." : "Guardar Cotización"}
+              {isSaving ? "Guardando..." : `Guardar ${tipoDocumento === "COTIZACION" ? "Cotización" : "Factura"}`}
             </button>
             <Dialog>
               <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg font-bold transition">
@@ -346,6 +350,7 @@ export default function CotizacionForm() {
                     items={calculatedItems} 
                     totales={totales} 
                     aplica4x1000Global={aplica4x1000Global} 
+                    tipoDocumento={tipoDocumento}
                   />
                 </div>
               </DialogContent>

@@ -14,6 +14,7 @@ interface ClientPDFViewerProps {
   items: ItemCalculated[];
   totales: DocumentTotals;
   aplica4x1000Global: boolean;
+  tipoDocumento: "COTIZACION" | "FACTURA";
 }
 
 export default function ClientPDFViewer(props: ClientPDFViewerProps) {

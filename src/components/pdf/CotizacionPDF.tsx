@@ -98,17 +98,18 @@ interface PdfProps {
   items: ItemCalculated[];
   totales: DocumentTotals;
   aplica4x1000Global: boolean;
+  tipoDocumento: 'COTIZACION' | 'FACTURA';
 }
 
 const formatCurrency = (val: number) => `$${val.toLocaleString('es-CO', { minimumFractionDigits: 2 })}`;
 
-export const CotizacionPDF = ({ formato, cliente, items, totales, aplica4x1000Global }: PdfProps) => {
+export const CotizacionPDF = ({ formato, cliente, items, totales, aplica4x1000Global, tipoDocumento }: PdfProps) => {
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>COTIZACIÓN COMERCIAL</Text>
+            <Text style={styles.title}>{tipoDocumento === 'COTIZACION' ? 'COTIZACIÓN COMERCIAL' : 'DOCUMENTO EQUIVALENTE / FACTURA'}</Text>
             <Text style={{ marginTop: 4, color: '#4a5568' }}>Fecha: {new Date().toLocaleDateString('es-CO')}</Text>
           </View>
           <View style={{ textAlign: 'right' }}>
