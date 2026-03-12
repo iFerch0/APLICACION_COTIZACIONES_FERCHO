@@ -12,7 +12,12 @@ import {
   Settings,
   TrendingUp,
   Eye,
+  CheckCircle,
+  AlertCircle,
+  Download,
+  RotateCcw,
 } from "lucide-react";
+import Link from "next/link";
 import { ItemInput, calcularItem, calcularTotalesDocumento } from "@/lib/calculator";
 import {
   Dialog,
@@ -126,6 +131,12 @@ export default function CotizacionForm({
 }: DocumentFormProps) {
   const [clienteInfo, setClienteInfo] = useState({ nombres: "", email: "", notas: "" });
   const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [savedDoc, setSavedDoc] = useState<{
+    numero: string;
+    id: string;
+    totalFinal: number;
+  } | null>(null);
   const [formatoPDF, setFormatoPDF] = useState<"completo" | "resumido" | "concatenado">("completo");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [items, setItems] = useState<ItemInput[]>([{ ...makeItem(), id: "1" }]);
@@ -169,7 +180,11 @@ export default function CotizacionForm({
   };
 
   const handleSave = async () => {
-    if (!clienteInfo.nombres) return alert("Ingresa el nombre del cliente.");
+    setFormError(null);
+    if (!clienteInfo.nombres.trim()) {
+      setFormError("El nombre del cliente es obligatorio.");
+      return;
+    }
     setIsSaving(true);
     try {
       const clienteDb = await createCustomer({
@@ -185,13 +200,27 @@ export default function CotizacionForm({
         observaciones: clienteInfo.notas,
       });
       if (doc.success) {
-        alert(`${isLabel} guardada exitosamente: ${doc.document.numero}`);
+        setSavedDoc({
+          numero: doc.document.numero,
+          id: doc.document.id,
+          totalFinal: totales.totalFinal,
+        });
       }
     } catch {
-      alert("Error al guardar. Verifica los datos e intenta de nuevo.");
+      setFormError("Ocurrió un error al guardar. Verifica los datos e intenta de nuevo.");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleReset = () => {
+    setItems([{ ...makeItem(), id: "1" }]);
+    setClienteInfo({ nombres: "", email: "", notas: "" });
+    setAplica4x1000Global(false);
+    setExpandedItems(new Set());
+    setSavedDoc(null);
+    setFormError(null);
+    setFormatoPDF("completo");
   };
 
   return (
@@ -698,6 +727,13 @@ export default function CotizacionForm({
                 onChange={(e) => setClienteInfo({ ...clienteInfo, notas: e.target.value })}
               />
             </div>
+
+            {formError && (
+              <div className="sm:col-span-2 flex items-center gap-2.5 p-3 bg-red-500/8 border border-red-500/20 rounded-xl">
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                <span className="text-xs text-red-500 font-medium">{formError}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -798,70 +834,162 @@ export default function CotizacionForm({
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="px-5 pb-5 space-y-2.5">
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed text-[oklch(0.090_0.025_255)] font-bold py-3.5 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2.5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
-                  />
-                </svg>
-                {isSaving ? "Guardando..." : `Guardar ${isLabel}`}
-              </button>
-
-              <Dialog>
-                <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3.5 rounded-xl transition-all text-sm">
-                  <Eye className="w-4 h-4" />
-                  Vista Previa PDF
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)]">
-                  <DialogHeader>
-                    <DialogTitle className="text-[var(--text-0)] text-base font-bold">
-                      Vista Previa — {tipoDocumento}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="flex flex-col gap-4 pt-2">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[var(--surface-2)] p-3 rounded-xl">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] shrink-0">
-                        Plantilla:
-                      </span>
-                      <select
-                        className="flex-1 w-full bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
-                        value={formatoPDF}
-                        onChange={(e) =>
-                          setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")
-                        }
-                      >
-                        <option value="completo">Completo — Con desglose de todos los cargos</option>
-                        <option value="resumido">Resumido — Modelo simplificado integrado</option>
-                        <option value="concatenado">Concatenado — Solo texto formal</option>
-                      </select>
+            {/* Action buttons / Success state */}
+            <div className="px-5 pb-5">
+              {savedDoc ? (
+                /* ── Success state ─────────────────────────────────── */
+                <div className="space-y-3 fade-up">
+                  {/* Checkmark + doc info */}
+                  <div className="flex flex-col items-center text-center py-5 px-3 bg-green-500/5 border border-green-500/15 rounded-2xl">
+                    <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center mb-3">
+                      <CheckCircle className="w-6 h-6 text-green-500" strokeWidth={2} />
                     </div>
-                    <div className="rounded-xl overflow-hidden shadow-2xl bg-gray-100 border border-[var(--border-0)]">
-                      <ClientPDFViewer
-                        formato={formatoPDF}
-                        cliente={clienteInfo}
-                        items={calculatedItems}
-                        totales={totales}
-                        aplica4x1000Global={aplica4x1000Global}
-                        tipoDocumento={tipoDocumento}
-                      />
+                    <div className="text-[10px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 mb-1.5">
+                      {isLabel} guardada
+                    </div>
+                    <div className="text-2xl font-black text-[var(--text-0)] tracking-tight mb-0.5">
+                      {savedDoc.numero}
+                    </div>
+                    <div className="text-sm text-[var(--text-2)]">
+                      Total:{" "}
+                      <span className="font-bold text-[var(--text-0)]">
+                        ${fmtDec(savedDoc.totalFinal)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-[var(--text-2)] mt-1">
+                      {clienteInfo.nombres}
                     </div>
                   </div>
-                </DialogContent>
-              </Dialog>
+
+                  {/* PDF Button */}
+                  <Dialog>
+                    <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-[oklch(0.090_0.025_255)] font-bold py-3 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20">
+                      <Download className="w-4 h-4" />
+                      Ver / Descargar PDF
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)]">
+                      <DialogHeader>
+                        <DialogTitle className="text-[var(--text-0)] text-base font-bold">
+                          {savedDoc.numero} — Vista Previa
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="flex flex-col gap-4 pt-2">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[var(--surface-2)] p-3 rounded-xl">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] shrink-0">
+                            Plantilla:
+                          </span>
+                          <select
+                            className="flex-1 w-full bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
+                            value={formatoPDF}
+                            onChange={(e) =>
+                              setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")
+                            }
+                          >
+                            <option value="completo">Completo — Con desglose de cargos</option>
+                            <option value="resumido">Resumido — Modelo simplificado</option>
+                            <option value="concatenado">Concatenado — Solo texto formal</option>
+                          </select>
+                        </div>
+                        <div className="rounded-xl overflow-hidden shadow-2xl bg-gray-100 border border-[var(--border-0)]">
+                          <ClientPDFViewer
+                            formato={formatoPDF}
+                            cliente={clienteInfo}
+                            items={calculatedItems}
+                            totales={totales}
+                            aplica4x1000Global={aplica4x1000Global}
+                            tipoDocumento={tipoDocumento}
+                          />
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Nueva Cotización */}
+                  <button
+                    onClick={handleReset}
+                    className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3 rounded-xl transition-all text-sm"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    {tipoDocumento === "COTIZACION" ? "Nueva Cotización" : "Nueva Factura"}
+                  </button>
+
+                  {/* Ir al inicio */}
+                  <Link
+                    href="/"
+                    className="flex items-center justify-center gap-1.5 text-xs text-[var(--text-2)] hover:text-[var(--text-1)] font-medium py-1.5 transition-colors"
+                  >
+                    ← Volver al inicio
+                  </Link>
+                </div>
+              ) : (
+                /* ── Default actions ───────────────────────────────── */
+                <div className="space-y-2.5">
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-60 disabled:cursor-not-allowed text-[oklch(0.090_0.025_255)] font-bold py-3.5 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        Guardar {isLabel}
+                      </>
+                    )}
+                  </button>
+
+                  <Dialog>
+                    <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3.5 rounded-xl transition-all text-sm">
+                      <Eye className="w-4 h-4" />
+                      Vista Previa PDF
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)]">
+                      <DialogHeader>
+                        <DialogTitle className="text-[var(--text-0)] text-base font-bold">
+                          Vista Previa — {tipoDocumento}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="flex flex-col gap-4 pt-2">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[var(--surface-2)] p-3 rounded-xl">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] shrink-0">
+                            Plantilla:
+                          </span>
+                          <select
+                            className="flex-1 w-full bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
+                            value={formatoPDF}
+                            onChange={(e) =>
+                              setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")
+                            }
+                          >
+                            <option value="completo">Completo — Con desglose de todos los cargos</option>
+                            <option value="resumido">Resumido — Modelo simplificado integrado</option>
+                            <option value="concatenado">Concatenado — Solo texto formal</option>
+                          </select>
+                        </div>
+                        <div className="rounded-xl overflow-hidden shadow-2xl bg-gray-100 border border-[var(--border-0)]">
+                          <ClientPDFViewer
+                            formato={formatoPDF}
+                            cliente={clienteInfo}
+                            items={calculatedItems}
+                            totales={totales}
+                            aplica4x1000Global={aplica4x1000Global}
+                            tipoDocumento={tipoDocumento}
+                          />
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
             </div>
 
             {/* Info note */}
