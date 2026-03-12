@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
   Plus,
@@ -26,12 +26,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createCustomer } from "@/app/actions/customers";
+import { createCustomer, searchCustomers } from "@/app/actions/customers";
 import { saveDocument } from "@/app/actions/documents";
 
 const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer"), {
   ssr: false,
 });
+
+const PDFDownloadButton = dynamic(
+  () => import("@/components/pdf/ClientPDFViewer").then((m) => ({ default: m.PDFDownloadButton })),
+  { ssr: false }
+);
 
 export interface DocumentFormProps {
   tipoDocumento?: "COTIZACION" | "FACTURA";
@@ -144,6 +149,43 @@ export default function CotizacionForm({
   const [items, setItems] = useState<ItemInput[]>([{ ...makeItem(), id: "1" }]);
   const [aplica4x1000Global, setAplica4x1000Global] = useState(false);
 
+  // Autocomplete
+  const [suggestions, setSuggestions] = useState<{ id: string; nombres: string; email: string | null }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (selectedCustomerId) return;
+    const t = setTimeout(async () => {
+      if (clienteInfo.nombres.length >= 2) {
+        const results = await searchCustomers(clienteInfo.nombres);
+        setSuggestions(results);
+        setShowSuggestions(results.length > 0);
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [clienteInfo.nombres, selectedCustomerId]);
+
+  const selectSuggestion = (c: { id: string; nombres: string; email: string | null }) => {
+    setClienteInfo((prev) => ({ ...prev, nombres: c.nombres, email: c.email ?? "" }));
+    setSelectedCustomerId(c.id);
+    setShowSuggestions(false);
+  };
+
   const calculatedItems = useMemo(() => items.map(calcularItem), [items]);
   const totales = useMemo(
     () => calcularTotalesDocumento(calculatedItems, aplica4x1000Global),
@@ -187,13 +229,20 @@ export default function CotizacionForm({
       setFormError("El nombre del cliente es obligatorio.");
       return;
     }
+    const invalidItems = calculatedItems.filter((i) => !i.descripcion.trim() || i.precioUnitarioBase <= 0);
+    if (invalidItems.length > 0) {
+      setFormError("Todos los ítems deben tener descripción y precio mayor a $0.");
+      return;
+    }
     setIsSaving(true);
     try {
-      const clienteDb = await createCustomer({
-        nombres: clienteInfo.nombres,
-        email: clienteInfo.email,
-        notas: clienteInfo.notas,
-      });
+      const clienteDb = selectedCustomerId
+        ? { id: selectedCustomerId }
+        : await createCustomer({
+            nombres: clienteInfo.nombres,
+            email: clienteInfo.email,
+            notas: clienteInfo.notas,
+          });
       const doc = await saveDocument({
         tipo: tipoDocumento,
         clienteId: clienteDb.id,
@@ -223,6 +272,9 @@ export default function CotizacionForm({
     setSavedDoc(null);
     setFormError(null);
     setFormatoPDF("completo");
+    setSelectedCustomerId(null);
+    setSuggestions([]);
+    setShowSuggestions(false);
   };
 
   return (
@@ -693,7 +745,7 @@ export default function CotizacionForm({
             subtitle="Datos de contacto del destinatario del documento"
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative" ref={autocompleteRef}>
               <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
                 Nombre completo <span className="text-amber-500">*</span>
               </label>
@@ -701,9 +753,36 @@ export default function CotizacionForm({
                 className={`${inputBase} py-3 px-4`}
                 placeholder="Ej: Juan Pérez"
                 type="text"
+                autoComplete="off"
                 value={clienteInfo.nombres}
-                onChange={(e) => setClienteInfo({ ...clienteInfo, nombres: e.target.value })}
+                onChange={(e) => {
+                  setClienteInfo({ ...clienteInfo, nombres: e.target.value });
+                  setSelectedCustomerId(null);
+                }}
               />
+              {showSuggestions && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-[var(--surface-1)] border border-[var(--border-0)] rounded-xl shadow-xl overflow-hidden">
+                  <p className="px-3 pt-2.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-[var(--text-2)]">
+                    Clientes existentes
+                  </p>
+                  {suggestions.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={() => selectSuggestion(c)}
+                      className="w-full flex flex-col items-start px-3 py-2.5 hover:bg-amber-400/8 transition-colors text-left"
+                    >
+                      <span className="text-sm font-semibold text-[var(--text-0)]">{c.nombres}</span>
+                      {c.email && <span className="text-xs text-[var(--text-2)]">{c.email}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedCustomerId && (
+                <p className="text-[10px] text-amber-500 font-semibold">
+                  ✓ Cliente existente seleccionado
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
@@ -863,11 +942,25 @@ export default function CotizacionForm({
                     </div>
                   </div>
 
-                  {/* PDF Button */}
+                  {/* Direct download */}
+                  <PDFDownloadButton
+                    formato={formatoPDF}
+                    cliente={clienteInfo}
+                    items={calculatedItems}
+                    totales={totales}
+                    aplica4x1000Global={aplica4x1000Global}
+                    tipoDocumento={tipoDocumento}
+                    seller={seller}
+                    fileName={`${savedDoc.numero}.pdf`}
+                    label="Descargar PDF"
+                    className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-[oklch(0.090_0.025_255)] font-bold py-3 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
+                  />
+
+                  {/* PDF Preview Dialog */}
                   <Dialog>
-                    <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-[oklch(0.090_0.025_255)] font-bold py-3 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20">
-                      <Download className="w-4 h-4" />
-                      Ver / Descargar PDF
+                    <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3 rounded-xl transition-all text-sm">
+                      <Eye className="w-4 h-4" />
+                      Vista previa PDF
                     </DialogTrigger>
                     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)]">
                       <DialogHeader>

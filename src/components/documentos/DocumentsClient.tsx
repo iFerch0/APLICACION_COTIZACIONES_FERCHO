@@ -225,7 +225,8 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
                   {filtered.map((doc) => (
                     <tr
                       key={doc.id}
-                      className="border-b border-[var(--border-0)]/50 last:border-0 hover:bg-[var(--surface-2)]/50 transition-colors group"
+                      className="border-b border-[var(--border-0)]/50 last:border-0 hover:bg-[var(--surface-2)]/50 transition-colors group cursor-pointer"
+                      onClick={() => { window.location.href = `/documentos/${doc.id}`; }}
                     >
                       <td className="px-5 py-3.5">
                         <TipoBadge tipo={doc.tipo} />
@@ -276,7 +277,7 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-[var(--border-0)]/50">
               {filtered.map((doc) => (
-                <div key={doc.id} className="p-4 space-y-2">
+                <Link key={doc.id} href={`/documentos/${doc.id}`} className="block p-4 space-y-2 hover:bg-[var(--surface-2)]/50 transition-colors">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <TipoBadge tipo={doc.tipo} />
@@ -305,7 +306,7 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
                       ${fmtDec(doc.totalFinal)}
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
 

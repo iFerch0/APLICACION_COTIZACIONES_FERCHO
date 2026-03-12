@@ -84,3 +84,16 @@ export async function getDocuments(params?: {
 }
 
 export type DocumentListItem = Awaited<ReturnType<typeof getDocuments>>[number];
+
+export async function getDocumentById(id: string) {
+  return await prisma.commercialDocument.findUnique({
+    where: { id },
+    include: {
+      customer: true,
+      seller: true,
+      items: { orderBy: { orden: "asc" } },
+    },
+  });
+}
+
+export type DocumentDetail = Awaited<ReturnType<typeof getDocumentById>>;

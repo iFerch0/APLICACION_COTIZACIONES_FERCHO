@@ -19,6 +19,23 @@ interface ClientPDFViewerProps {
   seller?: SellerData | null;
 }
 
+export function PDFDownloadButton({
+  fileName,
+  className,
+  label = "Descargar PDF",
+  ...pdfProps
+}: ClientPDFViewerProps & { fileName: string; className?: string; label?: string }) {
+  return (
+    <PDFDownloadLink
+      document={<CotizacionPDF {...pdfProps} />}
+      fileName={fileName}
+      className={className}
+    >
+      {({ loading }) => (loading ? "Generando..." : label)}
+    </PDFDownloadLink>
+  );
+}
+
 export default function ClientPDFViewer(props: ClientPDFViewerProps) {
   return (
     <div className="flex flex-col gap-4">
