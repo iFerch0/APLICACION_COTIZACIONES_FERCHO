@@ -2,7 +2,17 @@
 
 import { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
-import { Plus, Trash2, Printer } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  User,
+  Settings,
+  TrendingUp,
+  Eye,
+} from "lucide-react";
 import { ItemInput, calcularItem, calcularTotalesDocumento } from "@/lib/calculator";
 import {
   Dialog,
@@ -11,7 +21,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-
 import { createCustomer } from "@/app/actions/customers";
 import { saveDocument } from "@/app/actions/documents";
 
@@ -23,59 +32,104 @@ export interface DocumentFormProps {
   tipoDocumento?: "COTIZACION" | "FACTURA";
 }
 
-export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: DocumentFormProps) {
+// ── Helpers ────────────────────────────────────────────────────────────────
+const fmt = (n: number) =>
+  n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtDec = (n: number) =>
+  n.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const makeItem = (): ItemInput => ({
+  id: crypto.randomUUID(),
+  descripcion: "",
+  cantidad: 1,
+  precioUnitarioBase: 0,
+  aplicaTax: false,
+  taxUnitario: 0,
+  envioUnitario: 0,
+  promocionEnvioUnitario: 0,
+  importacionUnitario: 0,
+  aplicaAmazon: false,
+});
+
+// ── Shared input class strings ─────────────────────────────────────────────
+const inputBase =
+  "w-full bg-[var(--surface-2)] border border-[var(--border-0)] rounded-xl text-sm text-[var(--text-0)] placeholder-[var(--text-2)] focus:border-amber-400/50 focus:ring-1 focus:ring-amber-400/20 outline-none transition-all";
+
+const chargeInput =
+  "w-full bg-[var(--surface-1)] border border-[var(--border-0)] rounded-lg py-1.5 pl-5 pr-2 text-xs text-[var(--text-0)] placeholder-[var(--text-2)] focus:border-amber-400/50 outline-none transition-all";
+
+const chargeInputTeal =
+  "w-full bg-[var(--teal-surface)] border border-[var(--teal-border)] rounded-lg py-1.5 pl-5 pr-2 text-xs text-[var(--teal-text)] focus:border-amber-400/50 outline-none transition-all";
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+function SectionHeader({
+  icon: Icon,
+  title,
+  subtitle,
+  accent = "amber",
+}: {
+  icon: React.ElementType;
+  title: string;
+  subtitle?: string;
+  accent?: "amber" | "teal";
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-5">
+      <div
+        className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+          accent === "amber"
+            ? "bg-amber-400/10 text-amber-500"
+            : "bg-teal-400/10 text-teal-500"
+        }`}
+      >
+        <Icon className="w-4 h-4" />
+      </div>
+      <div>
+        <h3 className="text-[var(--text-0)] font-semibold text-sm">{title}</h3>
+        {subtitle && <p className="text-[var(--text-2)] text-xs mt-0.5">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+function LineItem({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: "amber" | "teal" | "danger";
+}) {
+  const valueClass =
+    accent === "amber"
+      ? "text-amber-500"
+      : accent === "teal"
+      ? "text-teal-500"
+      : accent === "danger"
+      ? "text-red-500"
+      : "text-[var(--text-0)]";
+
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-[var(--text-1)]">{label}</span>
+      <span className={`text-sm font-semibold ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────
+
+export default function CotizacionForm({
+  tipoDocumento = "COTIZACION",
+}: DocumentFormProps) {
   const [clienteInfo, setClienteInfo] = useState({ nombres: "", email: "", notas: "" });
-  const [clienteId, setClienteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [formatoPDF, setFormatoPDF] = useState<"completo" | "resumido" | "concatenado">("completo");
-  const [items, setItems] = useState<ItemInput[]>([
-    {
-      id: "1",
-      descripcion: "",
-      cantidad: 1,
-      precioUnitarioBase: 0,
-      aplicaTax: false,
-      taxUnitario: 0,
-      envioUnitario: 0,
-      promocionEnvioUnitario: 0,
-      importacionUnitario: 0,
-      aplicaAmazon: false,
-    },
-  ]);
-
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [items, setItems] = useState<ItemInput[]>([{ ...makeItem(), id: "1" }]);
   const [aplica4x1000Global, setAplica4x1000Global] = useState(false);
-
-  const agregarItem = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        descripcion: "",
-        cantidad: 1,
-        precioUnitarioBase: 0,
-        aplicaTax: false,
-        taxUnitario: 0,
-        envioUnitario: 0,
-        promocionEnvioUnitario: 0,
-        importacionUnitario: 0,
-        aplicaAmazon: false,
-      },
-    ]);
-  };
-
-  const eliminarItem = (id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const updateItem = <K extends keyof ItemInput>(
-    id: string,
-    field: K,
-    value: ItemInput[K]
-  ) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
-    );
-  };
 
   const calculatedItems = useMemo(() => items.map(calcularItem), [items]);
   const totales = useMemo(
@@ -83,204 +137,294 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
     [calculatedItems, aplica4x1000Global]
   );
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
-      {/* Left Column: Main Forms */}
-      <div className="lg:col-span-2 space-y-8">
-        
-        {/* Customer Information */}
-        <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-            <svg className="w-6 h-6 text-[#24aceb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-            </svg>
-            <h3 className="text-lg font-bold">Información del Cliente</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Cliente</span>
-              <input 
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-950 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none h-12 px-4 text-base transition-colors" 
-                placeholder="Ej: Juan Pérez" 
-                type="text"
-                value={clienteInfo.nombres}
-                onChange={(e) => setClienteInfo({...clienteInfo, nombres: e.target.value})}
-              />
-            </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Email de Contacto</span>
-              <input 
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-950 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none h-12 px-4 text-base transition-colors" 
-                placeholder="cliente@empresa.com" 
-                type="email"
-                value={clienteInfo.email}
-                onChange={(e) => setClienteInfo({...clienteInfo, email: e.target.value})}
-              />
-            </label>
-            <label className="flex flex-col gap-2 md:col-span-2">
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Notas Internas o Comentarios</span>
-              <textarea 
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 dark:bg-slate-950 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none p-4 text-base resize-none transition-colors" 
-                placeholder="Detalles adicionales sobre los términos o condiciones..." 
-                rows={3}
-                value={clienteInfo.notas}
-                onChange={(e) => setClienteInfo({...clienteInfo, notas: e.target.value})}
-              ></textarea>
-            </label>
-          </div>
-        </section>
+  const isLabel = tipoDocumento === "COTIZACION" ? "Cotización" : "Factura";
 
-        {/* Items Table */}
-        <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-            <div className="flex items-center gap-2">
-              <svg className="w-6 h-6 text-[#24aceb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-              </svg>
-              <h3 className="text-lg font-bold">Detalle de Ítems</h3>
+  const agregarItem = () => {
+    const item = makeItem();
+    setItems((prev) => [...prev, item]);
+    setExpandedItems((prev) => new Set([...prev, item.id]));
+  };
+
+  const eliminarItem = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+    setExpandedItems((prev) => {
+      const s = new Set(prev);
+      s.delete(id);
+      return s;
+    });
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedItems((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  };
+
+  const updateItem = <K extends keyof ItemInput>(id: string, field: K, value: ItemInput[K]) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleSave = async () => {
+    if (!clienteInfo.nombres) return alert("Ingresa el nombre del cliente.");
+    setIsSaving(true);
+    try {
+      const clienteDb = await createCustomer({
+        nombres: clienteInfo.nombres,
+        email: clienteInfo.email,
+        notas: clienteInfo.notas,
+      });
+      const doc = await saveDocument({
+        tipo: tipoDocumento,
+        clienteId: clienteDb.id,
+        items: calculatedItems,
+        totales,
+        observaciones: clienteInfo.notas,
+      });
+      if (doc.success) {
+        alert(`${isLabel} guardada exitosamente: ${doc.document.numero}`);
+      }
+    } catch {
+      alert("Error al guardar. Verifica los datos e intenta de nuevo.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col xl:flex-row gap-6 w-full">
+
+      {/* ── Main forms ─────────────────────────────────────────────────── */}
+      <div className="flex-1 min-w-0 space-y-5">
+
+        {/* Items Section */}
+        <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl overflow-hidden">
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-0)]">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-400/10 flex items-center justify-center">
+                <FileText className="w-4 h-4 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-[var(--text-0)] font-semibold text-sm">Detalle de Ítems</h3>
+                <p className="text-[var(--text-2)] text-xs">
+                  {items.length} {items.length === 1 ? "producto" : "productos"}
+                </p>
+              </div>
             </div>
-            <button 
+            <button
               onClick={agregarItem}
-              className="flex items-center gap-2 text-[#24aceb] font-bold text-sm hover:bg-[#24aceb]/5 px-3 py-2 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3.5 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-500 text-sm font-semibold rounded-xl transition-all"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              Añadir Ítem
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Añadir ítem</span>
             </button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+
+          {/* ── Desktop table (md+) ──────────────────────────────────── */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left min-w-[740px]">
               <thead>
-                <tr className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                  <th className="pb-4 px-2 w-[35%]">Descripción</th>
-                  <th className="pb-4 px-2 w-16">Cant.</th>
-                  <th className="pb-4 px-2 w-28">Precio Base</th>
-                  <th className="pb-4 px-2 w-28">Cargos Adic.</th>
-                  <th className="pb-4 px-2 w-28 text-center">Garantía</th>
-                  <th className="pb-4 px-2 w-32 text-right">Subtotal</th>
-                  <th className="pb-4 px-2 w-10"></th>
+                <tr className="border-b border-[var(--border-0)]">
+                  {[
+                    { label: "Descripción", cls: "w-[32%] px-5" },
+                    { label: "Cant.", cls: "w-14 text-center px-3" },
+                    { label: "Precio Base", cls: "w-28 px-3" },
+                    { label: "Cargos Adic.", cls: "w-36 px-3" },
+                    { label: "Amazon", cls: "w-20 text-center px-3" },
+                    { label: "Subtotal", cls: "w-28 text-right px-3" },
+                  ].map(({ label, cls }) => (
+                    <th
+                      key={label}
+                      className={`py-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-2)] ${cls}`}
+                    >
+                      {label}
+                    </th>
+                  ))}
+                  <th className="px-2 py-3 w-10" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                {calculatedItems.map((item) => (
-                  <tr key={item.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                    <td className="py-4 px-2 align-top">
-                      <input 
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md py-2 px-3 text-sm focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none transition-colors h-[88px]" 
-                        type="text" 
-                        placeholder="Nombre del producto..."
-                        value={item.descripcion}
-                        onChange={(e) => updateItem(item.id, "descripcion", e.target.value)}
-                      />
+              <tbody>
+                {calculatedItems.map((item, idx) => (
+                  <tr
+                    key={item.id}
+                    className="border-b border-[var(--border-0)]/50 last:border-0 hover:bg-[var(--surface-2)]/50 transition-colors group"
+                  >
+                    {/* Description */}
+                    <td className="px-5 py-3.5 align-top">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-2.5 text-[10px] font-bold text-[var(--text-2)] w-4 shrink-0 select-none">
+                          {idx + 1}
+                        </span>
+                        <textarea
+                          className={`${inputBase} py-2.5 px-3 resize-none min-h-[76px]`}
+                          placeholder="Nombre del producto o servicio..."
+                          value={item.descripcion}
+                          onChange={(e) => updateItem(item.id, "descripcion", e.target.value)}
+                        />
+                      </div>
                     </td>
-                    <td className="py-4 px-2 align-top">
-                      <input 
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-sm py-2 px-2 text-center focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none transition-colors" 
-                        type="number" 
+
+                    {/* Cantidad */}
+                    <td className="px-3 py-3.5 align-top">
+                      <input
+                        type="number"
                         min="1"
+                        className={`${inputBase} py-2.5 px-2 text-center`}
                         value={item.cantidad || ""}
                         onChange={(e) => updateItem(item.id, "cantidad", Number(e.target.value))}
                       />
                     </td>
-                    <td className="py-4 px-2 align-top">
-                      <input 
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md text-sm py-2 px-2 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none transition-colors" 
-                        type="number" 
-                        placeholder="$0.00"
-                        value={item.precioUnitarioBase || ""}
-                        onChange={(e) => updateItem(item.id, "precioUnitarioBase", Number(e.target.value))}
-                      />
-                      <div className="mt-2 text-[10px] text-slate-400 font-medium">Unidad COP</div>
+
+                    {/* Precio Base */}
+                    <td className="px-3 py-3.5 align-top">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-xs pointer-events-none">
+                          $
+                        </span>
+                        <input
+                          type="number"
+                          className={`${inputBase} py-2.5 pl-6 pr-2`}
+                          placeholder="0"
+                          value={item.precioUnitarioBase || ""}
+                          onChange={(e) =>
+                            updateItem(item.id, "precioUnitarioBase", Number(e.target.value))
+                          }
+                        />
+                      </div>
                     </td>
-                    <td className="py-4 px-2 align-top">
-                      <div className="flex flex-col gap-1.5 w-full">
-                        <label className="flex items-center gap-2 group/tax relative">
-                          <input 
-                            type="checkbox" 
-                            className="rounded border-slate-300 text-[#24aceb] focus:ring-[#24aceb]"
+
+                    {/* Cargos adicionales */}
+                    <td className="px-3 py-3.5 align-top">
+                      <div className="space-y-1.5">
+
+                        {/* Tax */}
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            className="w-3.5 h-3.5 rounded accent-amber-500 shrink-0"
                             checked={item.aplicaTax}
                             onChange={(e) => updateItem(item.id, "aplicaTax", e.target.checked)}
-                          /> 
-                          <span className="text-xs text-slate-500 font-medium">Extra</span>
-                          {item.aplicaTax && (
-                            <input 
-                              type="number"
-                              className="absolute left-16 w-[70px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-xs py-0.5 px-1 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none transition-colors"
-                              placeholder="$0.00"
-                              value={item.taxUnitario || ""}
-                              onChange={(e) => updateItem(item.id, "taxUnitario", Number(e.target.value))}
-                            />
-                          )}
-                        </label>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Env</span>
-                          <input 
-                            type="number" 
-                            className="w-[70px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-xs py-0.5 px-1 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none transition-colors"
-                            placeholder="$0"
-                            value={item.envioUnitario || ""}
-                            onChange={(e) => updateItem(item.id, "envioUnitario", Number(e.target.value))}
                           />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-blue-500 font-bold uppercase tracking-wider">Pro</span>
-                          <input 
-                            type="number" 
-                            className="w-[70px] bg-blue-50/30 border border-blue-200 rounded text-xs py-0.5 px-1 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none transition-colors"
-                            placeholder="-$0"
-                            value={item.promocionEnvioUnitario || ""}
-                            onChange={(e) => updateItem(item.id, "promocionEnvioUnitario", Number(e.target.value))}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Imp</span>
-                          <input 
-                            type="number" 
-                            className="w-[70px] bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-xs py-0.5 px-1 focus:border-[#24aceb] focus:ring-1 focus:ring-[#24aceb] outline-none transition-colors"
-                            placeholder="$0"
-                            value={item.importacionUnitario || ""}
-                            onChange={(e) => updateItem(item.id, "importacionUnitario", Number(e.target.value))}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-2 align-top text-center">
-                      <div className="flex flex-col items-center gap-2 mt-2">
-                        <label className="flex items-center justify-center gap-1.5 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            className="rounded border-slate-300 text-[#24aceb] focus:ring-[#24aceb] h-4 w-4"
-                            checked={item.aplicaAmazon}
-                            onChange={(e) => updateItem(item.id, "aplicaAmazon", e.target.checked)}
-                          /> 
-                          <span className="text-xs font-bold text-slate-600">Amz</span>
-                        </label>
-                        {item.aplicaAmazon ? (
-                            <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1 py-0.5 rounded">
-                              + ${item.amazonUnitarioCalculado.toLocaleString("es-CO", { minimumFractionDigits: 0 })}
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-1)] w-7 shrink-0">
+                            Tax
+                          </span>
+                          <div className="relative flex-1">
+                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
+                              $
                             </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-300 font-bold">Inactivo</span>
-                          )}
+                            <input
+                              type="number"
+                              className={`${
+                                item.aplicaTax
+                                  ? "w-full bg-amber-400/5 border border-amber-400/30 rounded-lg py-1.5 pl-5 pr-2 text-xs text-amber-500 focus:border-amber-400/60 outline-none transition-all"
+                                  : `${chargeInput} opacity-30 pointer-events-none`
+                              }`}
+                              placeholder="0"
+                              value={item.taxUnitario || ""}
+                              onChange={(e) =>
+                                updateItem(item.id, "taxUnitario", Number(e.target.value))
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        {/* Envío, Promo, Importación */}
+                        {(
+                          [
+                            {
+                              label: "Env",
+                              key: "envioUnitario" as keyof ItemInput,
+                              cls: chargeInput,
+                              color: "text-[var(--text-1)]",
+                            },
+                            {
+                              label: "Pro",
+                              key: "promocionEnvioUnitario" as keyof ItemInput,
+                              cls: chargeInputTeal,
+                              color: "text-teal-500",
+                            },
+                            {
+                              label: "Imp",
+                              key: "importacionUnitario" as keyof ItemInput,
+                              cls: chargeInput,
+                              color: "text-[var(--text-1)]",
+                            },
+                          ] as const
+                        ).map(({ label, key, cls, color }) => (
+                          <div key={key} className="flex items-center gap-1.5">
+                            <div className="w-3.5 h-3.5 shrink-0" />
+                            <span className={`text-[10px] font-bold uppercase tracking-wide w-7 shrink-0 ${color}`}>
+                              {label}
+                            </span>
+                            <div className="relative flex-1">
+                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
+                                $
+                              </span>
+                              <input
+                                type="number"
+                                className={cls}
+                                placeholder="0"
+                                value={(item[key] as number) || ""}
+                                onChange={(e) =>
+                                  updateItem(
+                                    item.id,
+                                    key,
+                                    Number(e.target.value) as ItemInput[typeof key]
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </td>
-                    <td className="py-4 px-2 align-top text-right">
-                      <div className="flex flex-col h-full items-end justify-center pt-2">
-                        <div className="font-bold text-sm text-slate-900 border-b border-dashed border-slate-300 pb-1 mb-1">
-                          ${item.subtotalLinea.toLocaleString("es-CO", { minimumFractionDigits: 2 })}
+
+                    {/* Amazon */}
+                    <td className="px-3 py-3.5 align-top text-center">
+                      <label className="flex flex-col items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded accent-amber-500"
+                          checked={item.aplicaAmazon}
+                          onChange={(e) => updateItem(item.id, "aplicaAmazon", e.target.checked)}
+                        />
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+                          Amz
+                        </span>
+                        {item.aplicaAmazon ? (
+                          <span className="text-[10px] font-bold text-amber-500 bg-amber-400/10 px-1.5 py-0.5 rounded-lg">
+                            +${fmt(item.amazonUnitarioCalculado)}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[var(--border-1)] font-medium">—</span>
+                        )}
+                      </label>
+                    </td>
+
+                    {/* Subtotal */}
+                    <td className="px-3 py-3.5 align-top text-right">
+                      <div className="pt-1">
+                        <div className="text-[var(--text-0)] font-bold text-sm">
+                          ${fmtDec(item.subtotalLinea)}
                         </div>
-                        <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-                          Nto.Unit: ${item.costoUnitarioFinal.toLocaleString("es-CO", { minimumFractionDigits: 0 })}
+                        <div className="text-[var(--text-2)] text-[10px] mt-1">
+                          u: ${fmt(item.costoUnitarioFinal)}
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-2 align-top text-right pt-5">
-                      <button 
+
+                    {/* Delete */}
+                    <td className="px-2 py-3.5 align-top">
+                      <button
                         onClick={() => eliminarItem(item.id)}
-                        className="text-slate-300 hover:text-red-500 transition-colors bg-white rounded-md hover:bg-red-50 p-1"
+                        className="mt-1.5 p-1.5 text-[var(--border-1)] hover:text-red-500 hover:bg-red-400/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </td>
                   </tr>
@@ -288,192 +432,461 @@ export default function CotizacionForm({ tipoDocumento = "COTIZACION" }: Documen
               </tbody>
             </table>
           </div>
-        </section>
+
+          {/* ── Mobile cards (< md) ──────────────────────────────────── */}
+          <div className="md:hidden divide-y divide-[var(--border-0)]/50">
+            {calculatedItems.map((item, idx) => {
+              const expanded = expandedItems.has(item.id);
+              return (
+                <div key={item.id} className="p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-3 text-[10px] font-bold text-[var(--text-2)] w-5 shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div className="flex-1 space-y-3">
+
+                      {/* Description + delete */}
+                      <div className="flex gap-2">
+                        <textarea
+                          className={`flex-1 ${inputBase} py-2.5 px-3 resize-none min-h-[60px]`}
+                          placeholder="Nombre del producto..."
+                          value={item.descripcion}
+                          onChange={(e) => updateItem(item.id, "descripcion", e.target.value)}
+                        />
+                        <button
+                          onClick={() => eliminarItem(item.id)}
+                          className="p-2 text-[var(--text-2)] hover:text-red-500 hover:bg-red-400/10 rounded-xl transition-all self-start"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Cantidad + Precio */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+                            Cantidad
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            className={`${inputBase} py-2.5 px-3 text-center`}
+                            value={item.cantidad || ""}
+                            onChange={(e) =>
+                              updateItem(item.id, "cantidad", Number(e.target.value))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+                            Precio Base
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-xs pointer-events-none">
+                              $
+                            </span>
+                            <input
+                              type="number"
+                              className={`${inputBase} py-2.5 pl-6 pr-3`}
+                              placeholder="0"
+                              value={item.precioUnitarioBase || ""}
+                              onChange={(e) =>
+                                updateItem(item.id, "precioUnitarioBase", Number(e.target.value))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Toggle cargos */}
+                      <button
+                        onClick={() => toggleExpanded(item.id)}
+                        className="flex items-center gap-1.5 text-xs text-amber-500/70 hover:text-amber-500 font-semibold transition-colors"
+                      >
+                        {expanded ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                        {expanded ? "Ocultar" : "Ver"} cargos adicionales
+                      </button>
+
+                      {/* Cargos expandidos */}
+                      {expanded && (
+                        <div className="bg-[var(--surface-2)] border border-[var(--border-0)] rounded-xl p-3 space-y-2.5">
+
+                          {/* Tax */}
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              className="w-3.5 h-3.5 rounded accent-amber-500 shrink-0"
+                              checked={item.aplicaTax}
+                              onChange={(e) =>
+                                updateItem(item.id, "aplicaTax", e.target.checked)
+                              }
+                            />
+                            <span className="text-xs font-bold text-amber-500/80 w-20 shrink-0">
+                              Tax extra
+                            </span>
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
+                                $
+                              </span>
+                              <input
+                                type="number"
+                                className={`w-full rounded-lg py-1.5 pl-5 pr-2 text-xs outline-none transition-all ${
+                                  item.aplicaTax
+                                    ? "bg-amber-400/5 border border-amber-400/30 text-amber-500 focus:border-amber-400/60"
+                                    : "bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-2)] opacity-40 pointer-events-none"
+                                }`}
+                                placeholder="0"
+                                value={item.taxUnitario || ""}
+                                onChange={(e) =>
+                                  updateItem(item.id, "taxUnitario", Number(e.target.value))
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          {/* Envío, Promo, Importación */}
+                          {(
+                            [
+                              {
+                                label: "Envío",
+                                key: "envioUnitario" as keyof ItemInput,
+                                color: "text-[var(--text-1)]",
+                                isTeal: false,
+                              },
+                              {
+                                label: "Promo envío",
+                                key: "promocionEnvioUnitario" as keyof ItemInput,
+                                color: "text-teal-500",
+                                isTeal: true,
+                              },
+                              {
+                                label: "Importación",
+                                key: "importacionUnitario" as keyof ItemInput,
+                                color: "text-[var(--text-1)]",
+                                isTeal: false,
+                              },
+                            ] as const
+                          ).map(({ label, key, color, isTeal }) => (
+                            <div key={key} className="flex items-center gap-2">
+                              <div className="w-3.5 h-3.5 shrink-0" />
+                              <span className={`text-xs font-bold w-20 shrink-0 ${color}`}>
+                                {label}
+                              </span>
+                              <div className="relative flex-1">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
+                                  $
+                                </span>
+                                <input
+                                  type="number"
+                                  className={`w-full rounded-lg py-1.5 pl-5 pr-2 text-xs outline-none transition-all ${
+                                    isTeal
+                                      ? "bg-[var(--teal-surface)] border border-[var(--teal-border)] text-[var(--teal-text)] focus:border-amber-400/50"
+                                      : "bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] focus:border-amber-400/50"
+                                  }`}
+                                  placeholder="0"
+                                  value={(item[key] as number) || ""}
+                                  onChange={(e) =>
+                                    updateItem(
+                                      item.id,
+                                      key,
+                                      Number(e.target.value) as ItemInput[typeof key]
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Amazon */}
+                          <div className="flex items-center gap-2 pt-0.5 border-t border-[var(--border-0)]">
+                            <input
+                              type="checkbox"
+                              className="w-3.5 h-3.5 rounded accent-amber-500 shrink-0"
+                              checked={item.aplicaAmazon}
+                              onChange={(e) =>
+                                updateItem(item.id, "aplicaAmazon", e.target.checked)
+                              }
+                            />
+                            <span className="text-xs font-bold text-[var(--text-1)] flex-1">
+                              Garantía Amazon (2.25%)
+                            </span>
+                            {item.aplicaAmazon && (
+                              <span className="text-xs font-bold text-amber-500">
+                                +${fmt(item.amazonUnitarioCalculado)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Subtotal row */}
+                      <div className="flex items-center justify-between pt-0.5">
+                        <span className="text-[10px] text-[var(--text-2)]">
+                          Precio unit: ${fmt(item.costoUnitarioFinal)}
+                        </span>
+                        <span className="text-sm font-bold text-[var(--text-0)]">
+                          ${fmtDec(item.subtotalLinea)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer add row */}
+          <div className="px-5 py-3 border-t border-[var(--border-0)] flex items-center justify-between">
+            <button
+              onClick={agregarItem}
+              className="flex items-center gap-2 text-sm text-[var(--text-1)] hover:text-amber-500 font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Agregar otro ítem
+            </button>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+              {items.length} {items.length === 1 ? "producto" : "productos"}
+            </span>
+          </div>
+        </div>
+
+        {/* Customer Section */}
+        <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl p-5">
+          <SectionHeader
+            icon={User}
+            title="Información del Cliente"
+            subtitle="Datos de contacto del destinatario del documento"
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+                Nombre completo <span className="text-amber-500">*</span>
+              </label>
+              <input
+                className={`${inputBase} py-3 px-4`}
+                placeholder="Ej: Juan Pérez"
+                type="text"
+                value={clienteInfo.nombres}
+                onChange={(e) => setClienteInfo({ ...clienteInfo, nombres: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+                Email de contacto
+              </label>
+              <input
+                className={`${inputBase} py-3 px-4`}
+                placeholder="cliente@empresa.com"
+                type="email"
+                value={clienteInfo.email}
+                onChange={(e) => setClienteInfo({ ...clienteInfo, email: e.target.value })}
+              />
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
+                Notas y observaciones
+              </label>
+              <textarea
+                className={`${inputBase} py-3 px-4 resize-none`}
+                placeholder="Condiciones especiales, términos de pago, observaciones..."
+                rows={3}
+                value={clienteInfo.notas}
+                onChange={(e) => setClienteInfo({ ...clienteInfo, notas: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
 
         {/* Global Settings */}
-        <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-1">
-              <h3 className="font-bold text-slate-900 dark:text-slate-100">Configuración Global</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Ajustes impositivos y financieros para el documento completo.</p>
+        <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl p-5">
+          <SectionHeader
+            icon={Settings}
+            title="Configuración Global"
+            subtitle="Ajustes impositivos y financieros para el documento completo"
+          />
+          <div className="flex items-center justify-between p-4 bg-[var(--surface-2)] border border-[var(--border-0)] rounded-xl">
+            <div>
+              <div className="text-sm font-semibold text-[var(--text-0)]">Retención 4×1000</div>
+              <div className="text-xs text-[var(--text-2)] mt-0.5">
+                Aplica 0.4% sobre el subtotal total del documento
+              </div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
+              <input
+                type="checkbox"
+                className="sr-only peer"
                 checked={aplica4x1000Global}
                 onChange={(e) => setAplica4x1000Global(e.target.checked)}
               />
-              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-[#24aceb]"></div>
-              <span className="ml-3 text-sm font-medium text-slate-700 dark:text-slate-300">Aplicar 4x1000 Global</span>
+              <div className="w-11 h-6 bg-[var(--border-0)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400" />
+              <span className="ml-3 text-sm font-medium text-[var(--text-1)]">
+                {aplica4x1000Global ? "Activo" : "Inactivo"}
+              </span>
             </label>
           </div>
-        </section>
-
+        </div>
       </div>
 
-      {/* Right Column: Summary & Actions */}
-      <div className="space-y-6">
-        <div className="bg-slate-900 dark:bg-slate-950 text-white rounded-2xl p-8 shadow-xl sticky top-28">
-          <h3 className="text-xl font-bold mb-8 flex items-center gap-2">
-            <svg className="w-6 h-6 text-[#24aceb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-            </svg>
-            Resumen de Cotización
-          </h3>
-          
-          <div className="space-y-4 border-b border-white/10 pb-6 mb-6">
-            <div className="flex justify-between text-slate-400">
-              <span className="text-sm">Subtotal Items</span>
-              <span className="font-medium">${totales.subtotal.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
-            </div>
-            
-            {(totales.totalTax > 0) && (
-              <div className="flex justify-between text-slate-400">
-                <span className="text-sm">Total Impuestos (Tax)</span>
-                <span className="font-medium">${totales.totalTax.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-            
-            <div className="flex justify-between text-slate-400">
-              <span className="text-sm">Total Envío (Neto)</span>
-              <span className="font-medium">${(totales.totalEnvio - totales.totalPromocionEnvio).toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
-            </div>
-            
-            <div className="flex justify-between text-slate-400">
-              <span className="text-sm">Total Importación</span>
-              <span className="font-medium">${totales.totalImportacion.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
-            </div>
-            
-            <div className="flex justify-between text-slate-400">
-              <span className="text-sm">Total Garantía Amz</span>
-              <span className="font-medium">${totales.totalAmazon.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
+      {/* ── Summary Panel ──────────────────────────────────────────────── */}
+      <div className="xl:w-80 shrink-0">
+        <div className="xl:sticky xl:top-24 space-y-4">
+
+          <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-[var(--border-0)] flex items-center gap-2.5">
+              <TrendingUp className="w-4 h-4 text-amber-500" />
+              <h3 className="text-[var(--text-0)] font-semibold text-sm">Resumen de {isLabel}</h3>
             </div>
 
-            {aplica4x1000Global && (
-              <div className="flex justify-between text-rose-300">
-                <span className="text-sm">Retención 4x1000</span>
-                <span className="font-medium">+ ${totales.total4x1000.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
-              </div>
-            )}
-          </div>
-          
-          <div className="flex justify-between items-end mb-8">
-            <div className="flex flex-col">
-              <span className="text-xs uppercase tracking-widest text-[#24aceb] font-bold">Total Final</span>
-              <span className="text-4xl font-black">${totales.totalFinal.toLocaleString("es-CO", { minimumFractionDigits: 2 })}</span>
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            <button 
-              onClick={async () => {
-                if (!clienteInfo.nombres) return alert("Ingresa el nombre del cliente.");
-                setIsSaving(true);
-                try {
-                  const clienteDb = await createCustomer({ 
-                    nombres: clienteInfo.nombres, 
-                    email: clienteInfo.email, 
-                    notas: clienteInfo.notas 
-                  });
-                  setClienteId(clienteDb.id);
-                  const doc = await saveDocument({
-                    tipo: tipoDocumento,
-                    clienteId: clienteDb.id,
-                    items: calculatedItems,
-                    totales: totales,
-                    observaciones: clienteInfo.notas
-                  });
-                  if(doc.success) {
-                     alert(`${tipoDocumento === "COTIZACION" ? "Cotización" : "Factura"} guardada exitosamente: ` + doc.document.numero);
-                  }
-                } catch (e) {
-                  alert("Error al guardar.");
-                } finally {
-                  setIsSaving(false);
-                }
-              }}
-              disabled={isSaving}
-              className="w-full bg-[#24aceb] hover:bg-[#24aceb]/90 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
-              </svg>
-              {isSaving ? "Procesando Sistema" : "Guardar Cotización"}
-            </button>
-            
-            <Dialog>
-              <DialogTrigger className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                </svg>
-                Previsualización PDF
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-md">
-                <DialogHeader>
-                  <DialogTitle className="text-xl">Previsualización del Documento ({tipoDocumento})</DialogTitle>
-                </DialogHeader>
-                <div className="flex flex-col gap-5 pt-4">
-                  <div className="flex flex-col md:flex-row items-center gap-4 bg-gray-50 p-4 rounded-xl">
-                    <span className="font-semibold text-gray-700 min-w-max">Plantilla de Visualización:</span>
-                    <select 
-                      className="border border-gray-200 p-2.5 rounded-lg bg-white text-sm w-full outline-none focus:ring-1 focus:ring-[#24aceb]"
-                      value={formatoPDF}
-                      onChange={(e) => setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")}
-                    >
-                      <option value="completo">Completo (Transparente con aduanas, envíos y Amazon)</option>
-                      <option value="resumido">Resumido (Modelo Simplificado Integrado)</option>
-                      <option value="concatenado">Concatenado (Solo Texto formal)</option>
-                    </select>
-                  </div>
-                  <div className="rounded-xl overflow-hidden shadow-2xl bg-gray-100 border border-gray-200">
-                    <ClientPDFViewer 
-                      formato={formatoPDF} 
-                      cliente={clienteInfo} 
-                      items={calculatedItems} 
-                      totales={totales} 
-                      aplica4x1000Global={aplica4x1000Global} 
-                      tipoDocumento={tipoDocumento}
-                    />
+            {/* Lines */}
+            <div className="p-5 space-y-2.5">
+              <LineItem label="Subtotal ítems" value={`$${fmtDec(totales.subtotal)}`} />
+              {totales.totalTax > 0 && (
+                <LineItem label="Tax (extras)" value={`+$${fmtDec(totales.totalTax)}`} accent="amber" />
+              )}
+              {totales.totalEnvio - totales.totalPromocionEnvio > 0 && (
+                <LineItem
+                  label="Envío neto"
+                  value={`+$${fmtDec(totales.totalEnvio - totales.totalPromocionEnvio)}`}
+                />
+              )}
+              {totales.totalPromocionEnvio > 0 && (
+                <LineItem
+                  label="Descuento envío"
+                  value={`−$${fmtDec(totales.totalPromocionEnvio)}`}
+                  accent="teal"
+                />
+              )}
+              {totales.totalImportacion > 0 && (
+                <LineItem label="Importación" value={`+$${fmtDec(totales.totalImportacion)}`} />
+              )}
+              {totales.totalAmazon > 0 && (
+                <LineItem
+                  label="Garantía Amazon"
+                  value={`+$${fmtDec(totales.totalAmazon)}`}
+                  accent="amber"
+                />
+              )}
+              {aplica4x1000Global && (
+                <LineItem
+                  label="Retención 4×1000"
+                  value={`+$${fmtDec(totales.total4x1000)}`}
+                  accent="danger"
+                />
+              )}
+
+              {/* Total */}
+              <div className="border-t border-[var(--border-0)] pt-4 mt-2">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-[9px] font-black uppercase tracking-widest text-amber-500/70 mb-1">
+                      Total Final
+                    </div>
+                    <div className="text-3xl font-black text-[var(--text-0)] leading-none">
+                      ${fmtDec(totales.totalFinal)}
+                    </div>
+                    <div className="text-[10px] text-[var(--text-2)] mt-1 font-medium">
+                      COP — Pesos Colombianos
+                    </div>
                   </div>
                 </div>
-              </DialogContent>
-            </Dialog>
-            
-          </div>
-          
-          <div className="mt-8 pt-6 border-t border-white/5">
-            <div className="bg-[#24aceb]/10 rounded-lg p-4 flex items-start gap-3">
-              <svg className="w-5 h-5 text-[#24aceb] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="px-5 pb-5 space-y-2.5">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed text-[oklch(0.090_0.025_255)] font-bold py-3.5 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  strokeWidth="2.5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                  />
+                </svg>
+                {isSaving ? "Guardando..." : `Guardar ${isLabel}`}
+              </button>
+
+              <Dialog>
+                <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3.5 rounded-xl transition-all text-sm">
+                  <Eye className="w-4 h-4" />
+                  Vista Previa PDF
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)]">
+                  <DialogHeader>
+                    <DialogTitle className="text-[var(--text-0)] text-base font-bold">
+                      Vista Previa — {tipoDocumento}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="flex flex-col gap-4 pt-2">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[var(--surface-2)] p-3 rounded-xl">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] shrink-0">
+                        Plantilla:
+                      </span>
+                      <select
+                        className="flex-1 w-full bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
+                        value={formatoPDF}
+                        onChange={(e) =>
+                          setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")
+                        }
+                      >
+                        <option value="completo">Completo — Con desglose de todos los cargos</option>
+                        <option value="resumido">Resumido — Modelo simplificado integrado</option>
+                        <option value="concatenado">Concatenado — Solo texto formal</option>
+                      </select>
+                    </div>
+                    <div className="rounded-xl overflow-hidden shadow-2xl bg-gray-100 border border-[var(--border-0)]">
+                      <ClientPDFViewer
+                        formato={formatoPDF}
+                        cliente={clienteInfo}
+                        items={calculatedItems}
+                        totales={totales}
+                        aplica4x1000Global={aplica4x1000Global}
+                        tipoDocumento={tipoDocumento}
+                      />
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Info note */}
+            <div className="mx-5 mb-5 flex items-start gap-2.5 bg-amber-400/5 border border-amber-400/10 rounded-xl p-3">
+              <svg
+                className="w-3.5 h-3.5 text-amber-500/60 shrink-0 mt-0.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Esta cotización tendrá una validez de 15 días calendario a partir de su generación según políticas comerciales.
+              <p className="text-xs text-[var(--text-2)] leading-relaxed">
+                Válida por{" "}
+                <span className="text-amber-500/80 font-semibold">15 días</span> calendario
+                desde su generación según políticas comerciales.
               </p>
             </div>
           </div>
         </div>
-        
-        {/* Additional Context/Quick Info from HTML */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 shadow-sm">
-          <h4 className="text-sm font-bold mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5 text-[#24aceb]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            Últimas Cotizaciones
-          </h4>
-          <ul className="space-y-3 text-xs">
-            <li className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800 last:border-0">
-              <span className="text-slate-600 dark:text-slate-400">COT-EJEMPLO-001</span>
-              <span className="font-bold">$2.500,00</span>
-            </li>
-            <li className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800 last:border-0">
-              <span className="text-slate-600 dark:text-slate-400">COT-EJEMPLO-002</span>
-              <span className="font-bold">$1.840,00</span>
-            </li>
-          </ul>
-        </div>
-        
       </div>
     </div>
   );

@@ -1,23 +1,43 @@
 import CotizacionForm from "@/components/cotizaciones/CotizacionForm";
+import Link from "next/link";
+import { ChevronRight, Home, FileText } from "lucide-react";
 
 export default function NuevaCotizacionPage() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight">Crear Cotización</h2>
-        <div className="flex space-x-2">
-          <button className="px-4 py-2 border rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition">
-            Cancelar
-          </button>
-          <button className="px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition font-medium shadow">
-            Guardar Cotización
-          </button>
+    <div className="fade-up space-y-6">
+
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-xs text-[var(--text-2)]">
+        <Link href="/" className="flex items-center gap-1 hover:text-[var(--text-0)] transition-colors">
+          <Home className="w-3.5 h-3.5" />
+          Inicio
+        </Link>
+        <ChevronRight className="w-3 h-3 text-[var(--border-1)]" />
+        <span className="flex items-center gap-1 text-amber-500 font-medium">
+          <FileText className="w-3.5 h-3.5" />
+          Nueva Cotización
+        </span>
+      </nav>
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-[var(--text-0)] tracking-tight">
+            Nueva Cotización
+          </h1>
+          <p className="mt-1.5 text-[var(--text-2)] text-sm">
+            Agrega ítems, configura cargos adicionales y genera el documento PDF.
+          </p>
         </div>
+        <Link
+          href="/"
+          className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] text-sm font-medium rounded-xl transition-all"
+        >
+          Cancelar
+        </Link>
       </div>
-      <p className="text-gray-600">
-        Agrega los detalles del cliente y los ítems con cálculos automatizados para impuestos y envíos.
-      </p>
-      <CotizacionForm />
+
+      <CotizacionForm tipoDocumento="COTIZACION" />
     </div>
   );
 }
