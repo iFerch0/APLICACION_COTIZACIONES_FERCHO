@@ -55,6 +55,9 @@ model CommercialDocument {
   currency       String                   @default("COP")
   // Trazabilidad: cotización origen de la que se generó esta factura
   cotizacionOrigenId  String?
+  margenPorcentaje    Float                    @default(0)
+  margenTipo          String                   @default("base")
+  margenRedondeo      Int                      @default(0)
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
   seller         SellerProfile            @relation(fields: [sellerId], references: [id])

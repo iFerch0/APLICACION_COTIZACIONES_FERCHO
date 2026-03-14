@@ -29,6 +29,39 @@ export interface DocumentTotals {
 
 export const AMAZON_RATE = 0.0225;
 
+// ── Margen de Ganancia ────────────────────────────────────────────────────────
+export type MargenTipo = 'base' | 'total';
+export type MargenRedondeo = 0 | 1000 | 5000;
+
+export interface MargenConfig {
+  porcentaje: number;   // e.g. 10, 15, custom
+  tipo: MargenTipo;     // 'base' → inflate precioUnitarioBase; 'total' → inflate costoUnitarioFinal
+  redondeo: MargenRedondeo;
+}
+
+export function aplicarRedondeo(valor: number, redondeo: MargenRedondeo): number {
+  if (redondeo === 0) return valor;
+  return Math.ceil(valor / redondeo) * redondeo;
+}
+
+/** Returns a new ItemInput with precioUnitarioBase adjusted to include the margin. */
+export function aplicarMargenAItem(item: ItemInput, config: MargenConfig): ItemInput {
+  const { porcentaje, tipo, redondeo } = config;
+  if (porcentaje <= 0) return item;
+  const rate = porcentaje / 100;
+
+  if (tipo === 'base') {
+    const newBase = aplicarRedondeo(item.precioUnitarioBase * (1 + rate), redondeo);
+    return { ...item, precioUnitarioBase: newBase };
+  } else {
+    // 'total': inflate the full costoUnitarioFinal, add difference onto precioUnitarioBase
+    const calc = calcularItem(item);
+    const marginAmount = calc.costoUnitarioFinal * rate;
+    const newBase = aplicarRedondeo(item.precioUnitarioBase + marginAmount, redondeo);
+    return { ...item, precioUnitarioBase: newBase };
+  }
+}
+
 export function calcularItem(item: ItemInput): ItemCalculated {
   const tax = item.aplicaTax ? item.taxUnitario : 0;
   const envioBase = item.envioUnitario || 0;

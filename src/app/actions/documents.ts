@@ -14,6 +14,9 @@ export interface EditDocumentData {
   clienteEmail: string;
   items: ItemInput[];
   observaciones: string;
+  margenPorcentaje: number;
+  margenTipo: "base" | "total";
+  margenRedondeo: 0 | 1000 | 5000;
 }
 
 // ── Tipo para datos importados de una cotización ─────────────────────────────
@@ -35,6 +38,9 @@ export async function saveDocument(data: {
   totales: DocumentTotals;
   observaciones?: string;
   cotizacionOrigenId?: string;
+  margenPorcentaje?: number;
+  margenTipo?: string;
+  margenRedondeo?: number;
 }) {
   let seller = await prisma.sellerProfile.findFirst();
   if (!seller) {
@@ -79,6 +85,19 @@ export async function saveDocument(data: {
       },
     },
   });
+
+  // Guardar margen via SQL directo (compatible con Prisma client sin regenerar)
+  if (data.margenPorcentaje !== undefined) {
+    try {
+      await prisma.$executeRaw`
+        UPDATE "CommercialDocument"
+        SET "margenPorcentaje" = ${data.margenPorcentaje},
+            "margenTipo"       = ${data.margenTipo ?? 'base'},
+            "margenRedondeo"   = ${data.margenRedondeo ?? 0}
+        WHERE "id" = ${result.id}
+      `;
+    } catch { /* columnas aún no migradas */ }
+  }
 
   // Vincular con cotización origen via SQL directo (compatible con Prisma client sin regenerar)
   if (data.cotizacionOrigenId) {
@@ -298,6 +317,22 @@ export async function getDocumentForEdit(id: string): Promise<EditDocumentData |
     aplicaAmazon: item.aplicaAmazon,
   }));
 
+  let margenPorcentaje = 0;
+  let margenTipo: "base" | "total" = "base";
+  let margenRedondeo: 0 | 1000 | 5000 = 0;
+  try {
+    const rawMargen = await prisma.$queryRaw<Array<{
+      margenPorcentaje: number;
+      margenTipo: string;
+      margenRedondeo: number;
+    }>>`SELECT "margenPorcentaje", "margenTipo", "margenRedondeo" FROM "CommercialDocument" WHERE "id" = ${doc.id}`;
+    if (rawMargen[0]) {
+      margenPorcentaje = rawMargen[0].margenPorcentaje ?? 0;
+      margenTipo = (rawMargen[0].margenTipo ?? "base") as "base" | "total";
+      margenRedondeo = (rawMargen[0].margenRedondeo ?? 0) as 0 | 1000 | 5000;
+    }
+  } catch { /* columnas aún no migradas */ }
+
   return {
     documentId: doc.id,
     documentNumero: doc.numero,
@@ -307,6 +342,9 @@ export async function getDocumentForEdit(id: string): Promise<EditDocumentData |
     clienteEmail: doc.customer.email ?? "",
     items,
     observaciones: doc.observaciones ?? "",
+    margenPorcentaje,
+    margenTipo,
+    margenRedondeo,
   };
 }
 
@@ -318,6 +356,9 @@ export async function updateDocument(
     items: ItemCalculated[];
     totales: DocumentTotals;
     observaciones?: string;
+    margenPorcentaje?: number;
+    margenTipo?: string;
+    margenRedondeo?: number;
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -351,6 +392,18 @@ export async function updateDocument(
         },
       },
     });
+    // Guardar margen via SQL directo
+    if (data.margenPorcentaje !== undefined) {
+      try {
+        await prisma.$executeRaw`
+          UPDATE "CommercialDocument"
+          SET "margenPorcentaje" = ${data.margenPorcentaje},
+              "margenTipo"       = ${data.margenTipo ?? 'base'},
+              "margenRedondeo"   = ${data.margenRedondeo ?? 0}
+          WHERE "id" = ${id}
+        `;
+      } catch { /* columnas aún no migradas */ }
+    }
     return { success: true };
   } catch {
     return { success: false, error: "Error al actualizar el documento." };

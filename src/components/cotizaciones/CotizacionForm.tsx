@@ -15,9 +15,19 @@ import {
   AlertCircle,
   Download,
   RotateCcw,
+  Percent,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
-import { ItemInput, calcularItem, calcularTotalesDocumento } from "@/lib/calculator";
+import {
+  ItemInput,
+  calcularItem,
+  calcularTotalesDocumento,
+  aplicarMargenAItem,
+  MargenConfig,
+  MargenTipo,
+  MargenRedondeo,
+} from "@/lib/calculator";
 import {
   Dialog,
   DialogContent,
@@ -174,6 +184,18 @@ export default function CotizacionForm({
     sourceDocument?.cotizacionNumero ?? null
   );
 
+  // ── Margen de ganancia ─────────────────────────────────────────────────────
+  type MargenPreset = 0 | 10 | 15 | 'manual';
+  const [margenPreset, setMargenPreset] = useState<MargenPreset>(0);
+  const [margenManual, setMargenManual] = useState<number>(20);
+  const [margenTipo, setMargenTipo] = useState<MargenTipo>(
+    editDocument?.margenTipo ?? 'base'
+  );
+  const [margenRedondeo, setMargenRedondeo] = useState<MargenRedondeo>(
+    editDocument?.margenRedondeo ?? 0
+  );
+  const margenPorcentaje = margenPreset === 'manual' ? margenManual : margenPreset;
+
   // Autocomplete
   const [suggestions, setSuggestions] = useState<{ id: string; nombres: string; email: string | null }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -213,11 +235,27 @@ export default function CotizacionForm({
     setShowSuggestions(false);
   };
 
+  // Cost items (no margin — what the seller pays)
   const calculatedItems = useMemo(() => items.map(calcularItem), [items]);
-  const totales = useMemo(
-    () => calcularTotalesDocumento(calculatedItems),
-    [calculatedItems]
+  const totalesCosto = useMemo(() => calcularTotalesDocumento(calculatedItems), [calculatedItems]);
+
+  // Margin config
+  const margenConfig = useMemo<MargenConfig>(
+    () => ({ porcentaje: margenPorcentaje, tipo: margenTipo, redondeo: margenRedondeo }),
+    [margenPorcentaje, margenTipo, margenRedondeo]
   );
+
+  // Client items (with margin — what the client pays)
+  const itemsConMargen = useMemo(
+    () => margenPorcentaje > 0 ? items.map((i) => aplicarMargenAItem(i, margenConfig)) : items,
+    [items, margenConfig, margenPorcentaje]
+  );
+  const calculatedItemsConMargen = useMemo(() => itemsConMargen.map(calcularItem), [itemsConMargen]);
+  const totales = useMemo(() => calcularTotalesDocumento(calculatedItemsConMargen), [calculatedItemsConMargen]);
+
+  // Profitability
+  const ganancia = totales.totalFinal - totalesCosto.totalFinal;
+  const margenReal = totalesCosto.totalFinal > 0 ? (ganancia / totalesCosto.totalFinal) * 100 : 0;
 
   const isLabel = tipoDocumento === "COTIZACION" ? "Cotización" : "Factura";
 
@@ -274,9 +312,12 @@ export default function CotizacionForm({
       if (isEditMode && editDocument) {
         const result = await updateDocument(editDocument.documentId, {
           clienteId: clienteDb.id,
-          items: calculatedItems,
+          items: calculatedItemsConMargen,
           totales,
           observaciones: clienteInfo.notas,
+          margenPorcentaje,
+          margenTipo,
+          margenRedondeo,
         });
         if (result.success) {
           router.push(`/documentos/${editDocument.documentId}`);
@@ -287,10 +328,13 @@ export default function CotizacionForm({
         const doc = await saveDocument({
           tipo: tipoDocumento,
           clienteId: clienteDb.id,
-          items: calculatedItems,
+          items: calculatedItemsConMargen,
           totales,
           observaciones: clienteInfo.notas,
           cotizacionOrigenId: cotizacionOrigenId ?? undefined,
+          margenPorcentaje,
+          margenTipo,
+          margenRedondeo,
         });
         if (doc.success) {
           setSavedDoc({
@@ -333,6 +377,10 @@ export default function CotizacionForm({
     setShowSuggestions(false);
     setCotizacionOrigenId(null);
     setCotizacionOrigenNumero(null);
+    setMargenPreset(0);
+    setMargenManual(20);
+    setMargenTipo('base');
+    setMargenRedondeo(0);
   };
 
   const hasFormData =
@@ -1007,9 +1055,8 @@ export default function CotizacionForm({
                   <PDFDownloadButton
                     formato={formatoPDF}
                     cliente={clienteInfo}
-                    items={calculatedItems}
+                    items={calculatedItemsConMargen}
                     totales={totales}
-                    aplica4x1000Global={aplica4x1000Global}
                     tipoDocumento={tipoDocumento}
                     seller={seller}
                     fileName={`${savedDoc.numero}.pdf`}
@@ -1053,7 +1100,7 @@ export default function CotizacionForm({
                         <ClientPDFViewer
                           formato={formatoPDF}
                           cliente={clienteInfo}
-                          items={calculatedItems}
+                          items={calculatedItemsConMargen}
                           totales={totales}
                           tipoDocumento={tipoDocumento}
                           seller={seller}
@@ -1161,7 +1208,7 @@ export default function CotizacionForm({
                         <ClientPDFViewer
                           formato={formatoPDF}
                           cliente={clienteInfo}
-                          items={calculatedItems}
+                          items={calculatedItemsConMargen}
                           totales={totales}
                           tipoDocumento={tipoDocumento}
                           seller={seller}
@@ -1195,6 +1242,144 @@ export default function CotizacionForm({
               </p>
             </div>
           </div>
+
+          {/* ── Margen de Ganancia ─────────────────────────────────────────── */}
+          {!savedDoc && (
+            <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl overflow-hidden">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-[var(--border-0)] flex items-center gap-2.5">
+                <Percent className="w-4 h-4 text-teal-500" />
+                <h3 className="text-[var(--text-0)] font-semibold text-sm">Margen de Ganancia</h3>
+                <span className="ml-auto flex items-center gap-1 text-[9px] bg-teal-400/10 text-teal-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                  <Lock className="w-2.5 h-2.5" />
+                  Solo vendedor
+                </span>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* Porcentaje */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] block mb-2">
+                    Margen %
+                  </label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {([0, 10, 15, 'manual'] as const).map((p) => (
+                      <button
+                        key={String(p)}
+                        onClick={() => setMargenPreset(p)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          margenPreset === p
+                            ? 'bg-teal-500 text-white shadow-sm'
+                            : 'bg-[var(--surface-2)] text-[var(--text-1)] hover:text-[var(--text-0)] border border-[var(--border-0)]'
+                        }`}
+                      >
+                        {p === 0 ? 'Ninguno' : p === 'manual' ? 'Manual' : `${p}%`}
+                      </button>
+                    ))}
+                  </div>
+                  {margenPreset === 'manual' && (
+                    <div className="relative mt-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={margenManual}
+                        onChange={(e) => setMargenManual(Math.max(0, Number(e.target.value)))}
+                        className={`${inputBase} py-2 pl-3 pr-8`}
+                        placeholder="Ej: 12.5"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-xs pointer-events-none">%</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tipo */}
+                {margenPorcentaje > 0 && (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] block mb-2">
+                      Aplicar sobre
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(['base', 'total'] as const).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setMargenTipo(t)}
+                          className={`py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            margenTipo === t
+                              ? 'bg-teal-500/15 text-teal-500 border border-teal-500/30'
+                              : 'bg-[var(--surface-2)] text-[var(--text-1)] hover:text-[var(--text-0)] border border-[var(--border-0)]'
+                          }`}
+                        >
+                          {t === 'base' ? 'Precio Base' : 'Costo Total'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Redondeo */}
+                {margenPorcentaje > 0 && (
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] block mb-2">
+                      Redondeo de precio
+                    </label>
+                    <div className="flex gap-1.5">
+                      {([0, 1000, 5000] as const).map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => setMargenRedondeo(r)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            margenRedondeo === r
+                              ? 'bg-teal-500/15 text-teal-500 border border-teal-500/30'
+                              : 'bg-[var(--surface-2)] text-[var(--text-1)] hover:text-[var(--text-0)] border border-[var(--border-0)]'
+                          }`}
+                        >
+                          {r === 0 ? 'Ninguno' : r === 1000 ? '1.000' : '5.000'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Profitability panel */}
+                {margenPorcentaje > 0 && totalesCosto.totalFinal > 0 && (
+                  <div className="bg-teal-400/5 border border-teal-400/15 rounded-xl p-3.5 space-y-2">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-teal-500/70 mb-2.5">
+                      Tu rentabilidad
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-[var(--text-1)]">Tu costo</span>
+                      <span className="text-sm font-semibold text-[var(--text-0)]">
+                        ${fmtDec(totalesCosto.totalFinal)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-[var(--text-1)]">Precio cliente</span>
+                      <span className="text-sm font-semibold text-teal-500">
+                        ${fmtDec(totales.totalFinal)}
+                      </span>
+                    </div>
+                    <div className="border-t border-teal-400/20 pt-2 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[var(--text-1)]">Tu ganancia</span>
+                        <span className="text-sm font-bold text-amber-500">
+                          +${fmtDec(ganancia)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[var(--text-1)]">Margen real</span>
+                        <span className="text-sm font-bold text-[var(--text-0)]">
+                          {margenReal.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
