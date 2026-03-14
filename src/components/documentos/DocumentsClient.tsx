@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
@@ -13,14 +14,17 @@ import {
   Hash,
   CalendarDays,
   User,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import type { DocumentListItem } from "@/app/actions/documents";
+import { archiveDocument } from "@/app/actions/documents";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const fmtDec = (n: number) =>
   n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
-type TipoFilter = "TODOS" | "COTIZACION" | "FACTURA";
+type TipoFilter = "TODOS" | "COTIZACION" | "FACTURA" | "ARCHIVADAS";
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
@@ -103,31 +107,51 @@ function EmptyState({ filtered }: { filtered: boolean }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [tipoFilter, setTipoFilter] = useState<TipoFilter>("TODOS");
+  const [, startArchive] = useTransition();
+
+  const showArchived = tipoFilter === "ARCHIVADAS";
 
   const filtered = useMemo(() => {
     return docs.filter((doc) => {
-      const matchesTipo = tipoFilter === "TODOS" || doc.tipo === tipoFilter;
+      const isArchived = doc.estado === "ARCHIVADA";
+      if (showArchived) {
+        if (!isArchived) return false;
+      } else {
+        if (isArchived) return false;
+        if (tipoFilter !== "TODOS" && doc.tipo !== tipoFilter) return false;
+      }
       const q = search.toLowerCase().trim();
-      const matchesSearch =
+      return (
         !q ||
         doc.numero.toLowerCase().includes(q) ||
         doc.customer.nombres.toLowerCase().includes(q) ||
-        (doc.customer.email ?? "").toLowerCase().includes(q);
-      return matchesTipo && matchesSearch;
+        (doc.customer.email ?? "").toLowerCase().includes(q)
+      );
     });
-  }, [docs, search, tipoFilter]);
+  }, [docs, search, tipoFilter, showArchived]);
 
-  // Stats
+  // Stats (excluding archived)
   const stats = useMemo(() => {
-    const cotizaciones = docs.filter((d) => d.tipo === "COTIZACION").length;
-    const facturas = docs.filter((d) => d.tipo === "FACTURA").length;
-    const totalCOP = docs.reduce((sum, d) => sum + d.totalFinal, 0);
-    return { total: docs.length, cotizaciones, facturas, totalCOP };
+    const active = docs.filter((d) => d.estado !== "ARCHIVADA");
+    const cotizaciones = active.filter((d) => d.tipo === "COTIZACION").length;
+    const facturas = active.filter((d) => d.tipo === "FACTURA").length;
+    const totalCOP = active.reduce((sum, d) => sum + d.totalFinal, 0);
+    const archivadas = docs.filter((d) => d.estado === "ARCHIVADA").length;
+    return { total: active.length, cotizaciones, facturas, totalCOP, archivadas };
   }, [docs]);
 
   const isFiltered = search.trim() !== "" || tipoFilter !== "TODOS";
+
+  const handleArchiveRow = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    startArchive(async () => {
+      await archiveDocument(id);
+      router.refresh();
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -161,17 +185,24 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
 
           {/* Tipo tabs */}
           <div className="flex items-center gap-1 bg-[var(--surface-2)] border border-[var(--border-0)] rounded-xl p-1">
-            {(["TODOS", "COTIZACION", "FACTURA"] as TipoFilter[]).map((t) => (
+            {(["TODOS", "COTIZACION", "FACTURA", "ARCHIVADAS"] as TipoFilter[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTipoFilter(t)}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${
                   tipoFilter === t
-                    ? "bg-amber-400 text-[oklch(0.090_0.025_255)] shadow-sm"
+                    ? t === "ARCHIVADAS"
+                      ? "bg-[var(--border-1)] text-[var(--text-0)] shadow-sm"
+                      : "bg-amber-400 text-[oklch(0.090_0.025_255)] shadow-sm"
                     : "text-[var(--text-1)] hover:text-[var(--text-0)]"
                 }`}
               >
-                {t === "TODOS" ? "Todos" : t === "COTIZACION" ? "Cot." : "Fac."}
+                {t === "TODOS" ? "Todos" : t === "COTIZACION" ? "Cot." : t === "FACTURA" ? "Fac." : (
+                  <span className="flex items-center gap-1">
+                    <Archive className="w-3 h-3" />
+                    {stats.archivadas > 0 ? stats.archivadas : ""}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -210,7 +241,8 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
                       { label: "Ítems", w: "w-16 px-3 text-center" },
                       { label: "Fecha", w: "w-32 px-3" },
                       { label: "Total", w: "w-32 px-3 text-right" },
-                      { label: "Estado", w: "w-28 px-5 text-right" },
+                      { label: "Estado", w: "w-28 px-3 text-right" },
+                      { label: "", w: "w-10 px-3" },
                     ].map(({ label, w }) => (
                       <th
                         key={label}
@@ -265,8 +297,19 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
                         </span>
                         <div className="text-[10px] text-[var(--text-2)]">COP</div>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-3 py-3.5 text-right">
                         <EstadoBadge estado={doc.estado} />
+                      </td>
+                      <td className="px-3 py-3.5 text-right">
+                        <button
+                          onClick={(e) => handleArchiveRow(e, doc.id)}
+                          title={doc.estado === "ARCHIVADA" ? "Desarchivar" : "Archivar"}
+                          className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-2)] hover:text-[var(--text-0)] transition-all"
+                        >
+                          {doc.estado === "ARCHIVADA"
+                            ? <ArchiveRestore className="w-3.5 h-3.5" />
+                            : <Archive className="w-3.5 h-3.5" />}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -347,6 +390,14 @@ function EstadoBadge({ estado }: { estado: string }) {
     RECHAZADO: {
       label: "Rechazado",
       cls: "bg-red-400/10 text-red-500 border-red-400/20",
+    },
+    FACTURADA: {
+      label: "Facturada",
+      cls: "bg-teal-400/10 text-teal-600 dark:text-teal-400 border-teal-400/20",
+    },
+    ARCHIVADA: {
+      label: "Archivada",
+      cls: "bg-[var(--surface-2)] text-[var(--text-2)] border-[var(--border-0)] opacity-70",
     },
   };
   const cfg = map[estado] ?? map["BORRADOR"];

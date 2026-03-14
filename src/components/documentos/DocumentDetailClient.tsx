@@ -35,7 +35,6 @@ export default function DocumentDetailClient({ doc }: { doc: NonNullable<Documen
     totalPromocionEnvio: doc.totalPromocionEnvio,
     totalImportacion: doc.totalImportacion,
     totalAmazon: doc.totalAmazon,
-    total4x1000: doc.total4x1000,
     totalFinal: doc.totalFinal,
   };
 
@@ -55,7 +54,6 @@ export default function DocumentDetailClient({ doc }: { doc: NonNullable<Documen
       cliente={{ nombres: doc.customer.nombres, email: doc.customer.email ?? "", notas: doc.observaciones ?? "" }}
       items={items}
       totales={totales}
-      aplica4x1000Global={doc.total4x1000 > 0}
       tipoDocumento={doc.tipo as "COTIZACION" | "FACTURA"}
       seller={seller}
       fileName={`${doc.numero}.pdf`}

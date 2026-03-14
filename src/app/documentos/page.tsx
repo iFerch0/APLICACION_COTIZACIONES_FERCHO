@@ -4,7 +4,7 @@ import { getDocuments } from "@/app/actions/documents";
 import DocumentsClient from "@/components/documentos/DocumentsClient";
 
 export default async function DocumentosPage() {
-  const docs = await getDocuments();
+  const docs = await getDocuments({ showArchived: true });
 
   return (
     <div className="fade-up space-y-6">

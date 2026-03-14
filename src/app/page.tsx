@@ -25,7 +25,7 @@ const features = [
   {
     icon: Calculator,
     title: "Cálculo automático",
-    desc: "IVA, envíos, comisión Amazon (2.25%) y retención 4×1000 calculados al instante.",
+    desc: "IVA, envíos, comisión Amazon (2.25%) e importación calculados al instante.",
   },
   {
     icon: FileText,

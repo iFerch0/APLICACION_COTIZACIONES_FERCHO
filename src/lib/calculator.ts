@@ -24,12 +24,10 @@ export interface DocumentTotals {
   totalPromocionEnvio: number;
   totalImportacion: number;
   totalAmazon: number;
-  total4x1000: number;
   totalFinal: number;
 }
 
 export const AMAZON_RATE = 0.0225;
-export const IMPUESTO_4X1000_RATE = 0.004;
 
 export function calcularItem(item: ItemInput): ItemCalculated {
   const tax = item.aplicaTax ? item.taxUnitario : 0;
@@ -55,8 +53,7 @@ export function calcularItem(item: ItemInput): ItemCalculated {
 }
 
 export function calcularTotalesDocumento(
-  items: ItemCalculated[],
-  aplica4x1000Global: boolean
+  items: ItemCalculated[]
 ): DocumentTotals {
   let subtotal = 0;
   let totalTax = 0;
@@ -66,7 +63,7 @@ export function calcularTotalesDocumento(
   let totalAmazon = 0;
 
   for (const item of items) {
-    subtotal += item.subtotalLinea;
+    subtotal += item.precioUnitarioBase * item.cantidad;
     totalTax += (item.aplicaTax ? item.taxUnitario : 0) * item.cantidad;
     totalEnvio += (item.envioUnitario || 0) * item.cantidad;
     totalPromocionEnvio += (item.promocionEnvioUnitario || 0) * item.cantidad;
@@ -74,9 +71,12 @@ export function calcularTotalesDocumento(
     totalAmazon += item.amazonUnitarioCalculado * item.cantidad;
   }
 
-  // 4x1000 global sobre el subtotal general si está configurado
-  const total4x1000 = aplica4x1000Global ? subtotal * IMPUESTO_4X1000_RATE : 0;
-  const totalFinal = subtotal + total4x1000;
+  const totalFinal =
+    subtotal +
+    totalTax +
+    (totalEnvio - totalPromocionEnvio) +
+    totalImportacion +
+    totalAmazon;
 
   return {
     subtotal,
@@ -85,7 +85,6 @@ export function calcularTotalesDocumento(
     totalPromocionEnvio,
     totalImportacion,
     totalAmazon,
-    total4x1000,
     totalFinal,
   };
 }

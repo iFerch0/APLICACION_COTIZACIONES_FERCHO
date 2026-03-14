@@ -9,7 +9,6 @@ import {
   ChevronUp,
   FileText,
   User,
-  Settings,
   TrendingUp,
   Eye,
   CheckCircle,
@@ -26,8 +25,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 import { createCustomer, searchCustomers } from "@/app/actions/customers";
-import { saveDocument } from "@/app/actions/documents";
+import { saveDocument, updateDocument, ImportedCotizacionData, EditDocumentData } from "@/app/actions/documents";
+import ImportarCotizacionModal from "@/components/cotizaciones/ImportarCotizacionModal";
 
 const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer"), {
   ssr: false,
@@ -41,6 +42,8 @@ const PDFDownloadButton = dynamic(
 export interface DocumentFormProps {
   tipoDocumento?: "COTIZACION" | "FACTURA";
   seller?: import("@/app/actions/seller").SellerData | null;
+  sourceDocument?: ImportedCotizacionData | null;
+  editDocument?: EditDocumentData | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -135,24 +138,48 @@ function LineItem({
 export default function CotizacionForm({
   tipoDocumento = "COTIZACION",
   seller,
+  sourceDocument,
+  editDocument,
 }: DocumentFormProps) {
-  const [clienteInfo, setClienteInfo] = useState({ nombres: "", email: "", notas: "" });
+  const router = useRouter();
+  const initSource = editDocument ?? sourceDocument;
+  const isEditMode = !!editDocument;
+
+  const [clienteInfo, setClienteInfo] = useState({
+    nombres: initSource?.clienteNombre ?? "",
+    email: initSource?.clienteEmail ?? "",
+    notas: initSource?.observaciones ?? "",
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [savedDoc, setSavedDoc] = useState<{
     numero: string;
     id: string;
     totalFinal: number;
+    cotizacionOrigenId?: string;
+    cotizacionOrigenNumero?: string;
   } | null>(null);
   const [formatoPDF, setFormatoPDF] = useState<"completo" | "resumido" | "concatenado">("completo");
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [items, setItems] = useState<ItemInput[]>([{ ...makeItem(), id: "1" }]);
-  const [aplica4x1000Global, setAplica4x1000Global] = useState(false);
+  const [items, setItems] = useState<ItemInput[]>(
+    initSource?.items && initSource.items.length > 0
+      ? initSource.items
+      : [{ ...makeItem(), id: "1" }]
+  );
+  // Trazabilidad: referencia a la cotización origen
+  const [cotizacionOrigenId, setCotizacionOrigenId] = useState<string | null>(
+    sourceDocument?.cotizacionOrigenId ?? null
+  );
+  const [cotizacionOrigenNumero, setCotizacionOrigenNumero] = useState<string | null>(
+    sourceDocument?.cotizacionNumero ?? null
+  );
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<{ id: string; nombres: string; email: string | null }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    initSource?.clienteId ?? null
+  );
   const autocompleteRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -188,8 +215,8 @@ export default function CotizacionForm({
 
   const calculatedItems = useMemo(() => items.map(calcularItem), [items]);
   const totales = useMemo(
-    () => calcularTotalesDocumento(calculatedItems, aplica4x1000Global),
-    [calculatedItems, aplica4x1000Global]
+    () => calcularTotalesDocumento(calculatedItems),
+    [calculatedItems]
   );
 
   const isLabel = tipoDocumento === "COTIZACION" ? "Cotización" : "Factura";
@@ -243,19 +270,37 @@ export default function CotizacionForm({
             email: clienteInfo.email,
             notas: clienteInfo.notas,
           });
-      const doc = await saveDocument({
-        tipo: tipoDocumento,
-        clienteId: clienteDb.id,
-        items: calculatedItems,
-        totales,
-        observaciones: clienteInfo.notas,
-      });
-      if (doc.success) {
-        setSavedDoc({
-          numero: doc.document.numero,
-          id: doc.document.id,
-          totalFinal: totales.totalFinal,
+
+      if (isEditMode && editDocument) {
+        const result = await updateDocument(editDocument.documentId, {
+          clienteId: clienteDb.id,
+          items: calculatedItems,
+          totales,
+          observaciones: clienteInfo.notas,
         });
+        if (result.success) {
+          router.push(`/documentos/${editDocument.documentId}`);
+        } else {
+          setFormError(result.error ?? "Error al actualizar el documento.");
+        }
+      } else {
+        const doc = await saveDocument({
+          tipo: tipoDocumento,
+          clienteId: clienteDb.id,
+          items: calculatedItems,
+          totales,
+          observaciones: clienteInfo.notas,
+          cotizacionOrigenId: cotizacionOrigenId ?? undefined,
+        });
+        if (doc.success) {
+          setSavedDoc({
+            numero: doc.document.numero,
+            id: doc.document.id,
+            totalFinal: totales.totalFinal,
+            cotizacionOrigenId: cotizacionOrigenId ?? undefined,
+            cotizacionOrigenNumero: cotizacionOrigenNumero ?? undefined,
+          });
+        }
       }
     } catch {
       setFormError("Ocurrió un error al guardar. Verifica los datos e intenta de nuevo.");
@@ -264,10 +309,21 @@ export default function CotizacionForm({
     }
   };
 
+  // Importar datos desde una cotización (usado por el modal)
+  const handleImport = (data: ImportedCotizacionData) => {
+    setClienteInfo({ nombres: data.clienteNombre, email: data.clienteEmail, notas: data.observaciones });
+    setSelectedCustomerId(data.clienteId);
+    setItems(data.items.length > 0 ? data.items : [{ ...makeItem(), id: "1" }]);
+    setCotizacionOrigenId(data.cotizacionOrigenId);
+    setCotizacionOrigenNumero(data.cotizacionNumero);
+    setExpandedItems(new Set());
+    setFormError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleReset = () => {
     setItems([{ ...makeItem(), id: "1" }]);
     setClienteInfo({ nombres: "", email: "", notas: "" });
-    setAplica4x1000Global(false);
     setExpandedItems(new Set());
     setSavedDoc(null);
     setFormError(null);
@@ -275,13 +331,49 @@ export default function CotizacionForm({
     setSelectedCustomerId(null);
     setSuggestions([]);
     setShowSuggestions(false);
+    setCotizacionOrigenId(null);
+    setCotizacionOrigenNumero(null);
   };
+
+  const hasFormData =
+    clienteInfo.nombres.trim() !== "" ||
+    items.some((i) => i.descripcion.trim() !== "" || i.precioUnitarioBase > 0);
 
   return (
     <div className="flex flex-col xl:flex-row gap-6 w-full">
 
       {/* ── Main forms ─────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 space-y-5">
+
+        {/* Banner: datos pre-cargados desde cotización */}
+        {cotizacionOrigenId && cotizacionOrigenNumero && !savedDoc && (
+          <div className="flex items-start gap-3 p-4 bg-teal-400/8 border border-teal-400/20 rounded-2xl">
+            <div className="w-8 h-8 rounded-xl bg-teal-400/15 flex items-center justify-center shrink-0 mt-0.5">
+              <FileText className="w-4 h-4 text-teal-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-[var(--text-0)]">
+                Pre-cargado desde cotización{" "}
+                <span className="text-teal-500">{cotizacionOrigenNumero}</span>
+              </p>
+              <p className="text-xs text-[var(--text-2)] mt-0.5">
+                Todos los ítems y datos del cliente han sido importados. Puedes modificarlos antes de guardar.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setCotizacionOrigenId(null);
+                setCotizacionOrigenNumero(null);
+              }}
+              className="text-[var(--text-2)] hover:text-[var(--text-1)] transition-colors shrink-0"
+              title="Descartar origen"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* Items Section */}
         <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl overflow-hidden">
@@ -299,13 +391,18 @@ export default function CotizacionForm({
                 </p>
               </div>
             </div>
-            <button
-              onClick={agregarItem}
-              className="flex items-center gap-2 px-3.5 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-500 text-sm font-semibold rounded-xl transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Añadir ítem</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {tipoDocumento === "FACTURA" && (
+                <ImportarCotizacionModal onImport={handleImport} hasFormData={hasFormData} />
+              )}
+              <button
+                onClick={agregarItem}
+                className="flex items-center gap-2 px-3.5 py-2 bg-amber-400/10 hover:bg-amber-400/20 text-amber-500 text-sm font-semibold rounded-xl transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Añadir ítem</span>
+              </button>
+            </div>
           </div>
 
           {/* ── Desktop table (md+) ──────────────────────────────────── */}
@@ -695,7 +792,7 @@ export default function CotizacionForm({
                               }
                             />
                             <span className="text-xs font-bold text-[var(--text-1)] flex-1">
-                              Garantía Amazon (2.25%)
+                              Garantía Tasa de Cambio (2.25%)
                             </span>
                             {item.aplicaAmazon && (
                               <span className="text-xs font-bold text-amber-500">
@@ -818,34 +915,6 @@ export default function CotizacionForm({
           </div>
         </div>
 
-        {/* Global Settings */}
-        <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl p-5">
-          <SectionHeader
-            icon={Settings}
-            title="Configuración Global"
-            subtitle="Ajustes impositivos y financieros para el documento completo"
-          />
-          <div className="flex items-center justify-between p-4 bg-[var(--surface-2)] border border-[var(--border-0)] rounded-xl">
-            <div>
-              <div className="text-sm font-semibold text-[var(--text-0)]">Retención 4×1000</div>
-              <div className="text-xs text-[var(--text-2)] mt-0.5">
-                Aplica 0.4% sobre el subtotal total del documento
-              </div>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-4">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                checked={aplica4x1000Global}
-                onChange={(e) => setAplica4x1000Global(e.target.checked)}
-              />
-              <div className="w-11 h-6 bg-[var(--border-0)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-400" />
-              <span className="ml-3 text-sm font-medium text-[var(--text-1)]">
-                {aplica4x1000Global ? "Activo" : "Inactivo"}
-              </span>
-            </label>
-          </div>
-        </div>
       </div>
 
       {/* ── Summary Panel ──────────────────────────────────────────────── */}
@@ -866,15 +935,15 @@ export default function CotizacionForm({
               {totales.totalTax > 0 && (
                 <LineItem label="Tax (extras)" value={`+$${fmtDec(totales.totalTax)}`} accent="amber" />
               )}
-              {totales.totalEnvio - totales.totalPromocionEnvio > 0 && (
+              {totales.totalEnvio > 0 && (
                 <LineItem
-                  label="Envío neto"
-                  value={`+$${fmtDec(totales.totalEnvio - totales.totalPromocionEnvio)}`}
+                  label="Descuento envío"
+                  value={`+$${fmtDec(totales.totalEnvio)}`}
                 />
               )}
               {totales.totalPromocionEnvio > 0 && (
                 <LineItem
-                  label="Descuento envío"
+                  label="Promo envío gratis"
                   value={`−$${fmtDec(totales.totalPromocionEnvio)}`}
                   accent="teal"
                 />
@@ -884,19 +953,11 @@ export default function CotizacionForm({
               )}
               {totales.totalAmazon > 0 && (
                 <LineItem
-                  label="Garantía Amazon"
+                  label="Garantía Tasa de Cambio"
                   value={`+$${fmtDec(totales.totalAmazon)}`}
                   accent="amber"
                 />
               )}
-              {aplica4x1000Global && (
-                <LineItem
-                  label="Retención 4×1000"
-                  value={`+$${fmtDec(totales.total4x1000)}`}
-                  accent="danger"
-                />
-              )}
-
               {/* Total */}
               <div className="border-t border-[var(--border-0)] pt-4 mt-2">
                 <div className="flex items-end justify-between">
@@ -962,40 +1023,41 @@ export default function CotizacionForm({
                       <Eye className="w-4 h-4" />
                       Vista previa PDF
                     </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)]">
-                      <DialogHeader>
-                        <DialogTitle className="text-[var(--text-0)] text-base font-bold">
-                          {savedDoc.numero} — Vista Previa
+                    <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)] p-0">
+                      {/* Título */}
+                      <div className="px-6 pt-6 pb-4 border-b border-[var(--border-0)]">
+                        <DialogTitle className="text-[var(--text-0)] font-bold text-base">
+                          {savedDoc.numero}
                         </DialogTitle>
-                      </DialogHeader>
-                      <div className="flex flex-col gap-4 pt-2">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[var(--surface-2)] p-3 rounded-xl">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] shrink-0">
-                            Plantilla:
-                          </span>
-                          <select
-                            className="flex-1 w-full bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
-                            value={formatoPDF}
-                            onChange={(e) =>
-                              setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")
-                            }
+                        <p className="text-[var(--text-2)] text-xs mt-0.5">Vista previa del documento</p>
+                      </div>
+                      {/* Tabs de plantilla — fila dedicada */}
+                      <div className="flex items-center gap-1 px-6 py-3 border-b border-[var(--border-0)] bg-[var(--surface-2)]/50">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-2)] mr-2">Plantilla:</span>
+                        {(["completo", "resumido", "concatenado"] as const).map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setFormatoPDF(f)}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                              formatoPDF === f
+                                ? "bg-amber-400 text-[oklch(0.090_0.025_255)] shadow-sm"
+                                : "text-[var(--text-1)] hover:text-[var(--text-0)] hover:bg-[var(--surface-2)]"
+                            }`}
                           >
-                            <option value="completo">Completo — Con desglose de cargos</option>
-                            <option value="resumido">Resumido — Modelo simplificado</option>
-                            <option value="concatenado">Concatenado — Solo texto formal</option>
-                          </select>
-                        </div>
-                        <div className="rounded-xl overflow-hidden shadow-2xl bg-gray-100 border border-[var(--border-0)]">
-                          <ClientPDFViewer
-                            formato={formatoPDF}
-                            cliente={clienteInfo}
-                            items={calculatedItems}
-                            totales={totales}
-                            aplica4x1000Global={aplica4x1000Global}
-                            tipoDocumento={tipoDocumento}
-                            seller={seller}
-                          />
-                        </div>
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Visor */}
+                      <div className="p-5">
+                        <ClientPDFViewer
+                          formato={formatoPDF}
+                          cliente={clienteInfo}
+                          items={calculatedItems}
+                          totales={totales}
+                          tipoDocumento={tipoDocumento}
+                          seller={seller}
+                        />
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -1008,6 +1070,25 @@ export default function CotizacionForm({
                     <RotateCcw className="w-4 h-4" />
                     {tipoDocumento === "COTIZACION" ? "Nueva Cotización" : "Nueva Factura"}
                   </button>
+
+                  {/* Ver documento guardado */}
+                  <Link
+                    href={`/documentos/${savedDoc.id}`}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-2 transition-colors border border-[var(--border-0)] rounded-xl"
+                  >
+                    Ver {tipoDocumento === "COTIZACION" ? "cotización" : "factura"} guardada →
+                  </Link>
+
+                  {/* Link a cotización origen si aplica */}
+                  {savedDoc.cotizacionOrigenId && savedDoc.cotizacionOrigenNumero && (
+                    <Link
+                      href={`/documentos/${savedDoc.cotizacionOrigenId}`}
+                      className="flex items-center justify-center gap-1.5 text-xs text-teal-500 hover:text-teal-400 font-medium py-1 transition-colors"
+                    >
+                      <FileText className="w-3 h-3" />
+                      Ver cotización origen {savedDoc.cotizacionOrigenNumero}
+                    </Link>
+                  )}
 
                   {/* Ir al inicio */}
                   <Link
@@ -1038,7 +1119,7 @@ export default function CotizacionForm({
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                         </svg>
-                        Guardar {isLabel}
+                        {isEditMode ? "Guardar cambios" : `Guardar ${isLabel}`}
                       </>
                     )}
                   </button>
@@ -1048,40 +1129,43 @@ export default function CotizacionForm({
                       <Eye className="w-4 h-4" />
                       Vista Previa PDF
                     </DialogTrigger>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)]">
-                      <DialogHeader>
-                        <DialogTitle className="text-[var(--text-0)] text-base font-bold">
-                          Vista Previa — {tipoDocumento}
+                    <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)] p-0">
+                      {/* Título */}
+                      <div className="px-6 pt-6 pb-4 border-b border-[var(--border-0)]">
+                        <DialogTitle className="text-[var(--text-0)] font-bold text-base">
+                          Vista Previa
                         </DialogTitle>
-                      </DialogHeader>
-                      <div className="flex flex-col gap-4 pt-2">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[var(--surface-2)] p-3 rounded-xl">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] shrink-0">
-                            Plantilla:
-                          </span>
-                          <select
-                            className="flex-1 w-full bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400/50"
-                            value={formatoPDF}
-                            onChange={(e) =>
-                              setFormatoPDF(e.target.value as "completo" | "resumido" | "concatenado")
-                            }
+                        <p className="text-[var(--text-2)] text-xs mt-0.5">
+                          {tipoDocumento === "COTIZACION" ? "Cotización" : "Factura"} — sin guardar aún
+                        </p>
+                      </div>
+                      {/* Tabs de plantilla — fila dedicada */}
+                      <div className="flex items-center gap-1 px-6 py-3 border-b border-[var(--border-0)] bg-[var(--surface-2)]/50">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-2)] mr-2">Plantilla:</span>
+                        {(["completo", "resumido", "concatenado"] as const).map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setFormatoPDF(f)}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                              formatoPDF === f
+                                ? "bg-amber-400 text-[oklch(0.090_0.025_255)] shadow-sm"
+                                : "text-[var(--text-1)] hover:text-[var(--text-0)] hover:bg-[var(--surface-2)]"
+                            }`}
                           >
-                            <option value="completo">Completo — Con desglose de todos los cargos</option>
-                            <option value="resumido">Resumido — Modelo simplificado integrado</option>
-                            <option value="concatenado">Concatenado — Solo texto formal</option>
-                          </select>
-                        </div>
-                        <div className="rounded-xl overflow-hidden shadow-2xl bg-gray-100 border border-[var(--border-0)]">
-                          <ClientPDFViewer
-                            formato={formatoPDF}
-                            cliente={clienteInfo}
-                            items={calculatedItems}
-                            totales={totales}
-                            aplica4x1000Global={aplica4x1000Global}
-                            tipoDocumento={tipoDocumento}
-                            seller={seller}
-                          />
-                        </div>
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Visor */}
+                      <div className="p-5">
+                        <ClientPDFViewer
+                          formato={formatoPDF}
+                          cliente={clienteInfo}
+                          items={calculatedItems}
+                          totales={totales}
+                          tipoDocumento={tipoDocumento}
+                          seller={seller}
+                        />
                       </div>
                     </DialogContent>
                   </Dialog>

@@ -53,11 +53,16 @@ model CommercialDocument {
   totalFinal          Float
   estado              String                   @default("BORRADOR")
   currency       String                   @default("COP")
+  // Trazabilidad: cotización origen de la que se generó esta factura
+  cotizacionOrigenId  String?
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
   seller         SellerProfile            @relation(fields: [sellerId], references: [id])
   customer       Customer                 @relation(fields: [customerId], references: [id])
   items          CommercialDocumentItem[]
+  // Auto-relación: factura → cotización origen
+  cotizacionOrigen     CommercialDocument?  @relation("CotizacionAFactura", fields: [cotizacionOrigenId], references: [id])
+  facturasGeneradas    CommercialDocument[] @relation("CotizacionAFactura")
 }
 
 model CommercialDocumentItem {

@@ -118,7 +118,6 @@ interface PdfProps {
   };
   items: ItemCalculated[];
   totales: DocumentTotals;
-  aplica4x1000Global: boolean;
   tipoDocumento: 'COTIZACION' | 'FACTURA';
   seller?: SellerData | null;
 }
@@ -130,7 +129,6 @@ export const CotizacionPDF = ({
   cliente,
   items,
   totales,
-  aplica4x1000Global,
   tipoDocumento,
   seller,
 }: PdfProps) => {
@@ -241,14 +239,13 @@ export const CotizacionPDF = ({
           </View>
         )}
 
-        {/* Items — Concatenado */}
+        {/* Items — Concatenado: solo descripción y cantidad, sin precios */}
         {formato === 'concatenado' && (
           <View style={{ marginBottom: 20 }}>
             {items.map((item, i) => (
               <View key={i} style={styles.concatenatedRow}>
                 <Text>
-                  • {item.cantidad} UND x {item.descripcion} —{' '}
-                  {fmt(item.costoUnitarioFinal)} c/u = {fmt(item.subtotalLinea)}
+                  • {item.cantidad} UND x {item.descripcion}
                 </Text>
               </View>
             ))}
@@ -269,10 +266,18 @@ export const CotizacionPDF = ({
                   <Text>{fmt(totales.totalTax)}</Text>
                 </View>
               )}
-              <View style={styles.totalRow}>
-                <Text>Total Envío (Neto):</Text>
-                <Text>{fmt(totales.totalEnvio - totales.totalPromocionEnvio)}</Text>
-              </View>
+              {totales.totalEnvio > 0 && (
+                <View style={styles.totalRow}>
+                  <Text>Descuento Envío:</Text>
+                  <Text>{fmt(totales.totalEnvio)}</Text>
+                </View>
+              )}
+              {totales.totalPromocionEnvio > 0 && (
+                <View style={styles.totalRow}>
+                  <Text>Promo Envío Gratis:</Text>
+                  <Text>-{fmt(totales.totalPromocionEnvio)}</Text>
+                </View>
+              )}
               {totales.totalImportacion > 0 && (
                 <View style={styles.totalRow}>
                   <Text>Total Importación:</Text>
@@ -281,17 +286,11 @@ export const CotizacionPDF = ({
               )}
               {totales.totalAmazon > 0 && (
                 <View style={styles.totalRow}>
-                  <Text>Garantía Amazon:</Text>
+                  <Text>Garantía Tasa de Cambio:</Text>
                   <Text>{fmt(totales.totalAmazon)}</Text>
                 </View>
               )}
             </>
-          )}
-          {aplica4x1000Global && (
-            <View style={styles.totalRow}>
-              <Text>Retención 4x1000:</Text>
-              <Text>{fmt(totales.total4x1000)}</Text>
-            </View>
           )}
           <View style={styles.totalRowBold}>
             <Text>TOTAL A PAGAR:</Text>
