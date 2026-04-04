@@ -17,6 +17,7 @@ interface ClientPDFViewerProps {
   totales: DocumentTotals;
   tipoDocumento: "COTIZACION" | "FACTURA";
   seller?: SellerData | null;
+  numero?: string;
 }
 
 export function PDFDownloadButton({

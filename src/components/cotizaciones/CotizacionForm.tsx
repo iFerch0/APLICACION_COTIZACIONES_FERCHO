@@ -1054,6 +1054,7 @@ export default function CotizacionForm({
                   {/* Direct download */}
                   <PDFDownloadButton
                     formato={formatoPDF}
+                    numero={savedDoc.numero}
                     cliente={clienteInfo}
                     items={calculatedItemsConMargen}
                     totales={totales}
@@ -1099,6 +1100,7 @@ export default function CotizacionForm({
                       <div className="p-5">
                         <ClientPDFViewer
                           formato={formatoPDF}
+                          numero={savedDoc.numero}
                           cliente={clienteInfo}
                           items={calculatedItemsConMargen}
                           totales={totales}

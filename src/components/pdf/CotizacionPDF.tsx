@@ -1,113 +1,265 @@
-import React from 'react';
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Svg, Polygon, Rect } from '@react-pdf/renderer';
 import { ItemCalculated, DocumentTotals } from '@/lib/calculator';
 import type { SellerData } from '@/app/actions/seller';
 
 const styles = StyleSheet.create({
   page: {
-    padding: 30,
+    paddingTop: 40,
+    paddingBottom: 90,
+    paddingHorizontal: 45,
     fontFamily: 'Helvetica',
     fontSize: 10,
-    color: '#333',
+    color: '#1A202C',
+    backgroundColor: '#FFFFFF',
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    borderBottom: '1px solid #eee',
-    paddingBottom: 10,
+    alignItems: 'flex-start',
+    marginBottom: 30,
   },
-  title: {
-    fontSize: 20,
+  logoColumn: {
+    flex: 1.2,
+  },
+  logoTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#1a365d',
-  },
-  sellerBlock: {
-    textAlign: 'right',
-    maxWidth: 180,
-  },
-  sellerName: {
-    fontWeight: 'bold',
-    fontSize: 11,
+    color: '#0B2046',
     marginBottom: 2,
+    letterSpacing: -0.5,
   },
-  sellerMeta: {
-    fontSize: 8,
-    color: '#4a5568',
-    marginBottom: 1,
+  logoSubtitle: {
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: '#4A5568',
   },
-  clientInfo: {
-    marginBottom: 20,
-    padding: 10,
-    backgroundColor: '#f8fafc',
-    borderRadius: 4,
+  companyInfoColumn: {
+    flex: 1.2,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: '#0066FF',
+    justifyContent: 'center',
+    height: 35,
   },
-  clientText: {
+  companyInfoText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#1A202C',
+    lineHeight: 1.4,
+  },
+  companyAddressText: {
+    fontSize: 9,
+    color: '#4A5568',
+    marginTop: 2,
+  },
+  documentMetaColumn: {
+    flex: 1.4,
+    alignItems: 'flex-end',
+  },
+  docTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#0B2046',
     marginBottom: 4,
   },
-  sectionTitle: {
-    fontSize: 12,
+  docNit: {
+    fontSize: 10,
     fontWeight: 'bold',
+    color: '#1A202C',
     marginBottom: 8,
-    color: '#2d3748',
   },
-  table: {
-    flexDirection: 'column',
-    marginBottom: 20,
+  metaGrid: {
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  metaText: {
+    fontSize: 9,
+    color: '#1A202C',
+  },
+  metaLabel: {
+    fontWeight: 'bold',
+  },
+  clientSection: {
+    marginBottom: 25,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#0B2046',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#0B2046',
+    paddingBottom: 4,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  clientInfoWrapper: {
+    flexDirection: 'row',
+  },
+  clientCol: {
+    flex: 1,
+    gap: 4,
+  },
+  clientTextRow: {
+    fontSize: 10,
+    color: '#1A202C',
+  },
+  tableWrapper: {
+    marginTop: 10,
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#0B2046',
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  tableHeaderText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 9,
   },
   tableRow: {
     flexDirection: 'row',
-    borderBottomColor: '#eee',
     borderBottomWidth: 1,
-    paddingVertical: 6,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 8,
     alignItems: 'center',
   },
-  tableHeader: {
-    backgroundColor: '#edf2f7',
-    fontWeight: 'bold',
-    paddingVertical: 8,
+  tableRowText: {
+    fontSize: 9,
+    color: '#1A202C',
   },
-  colDesc: { flex: 4, paddingHorizontal: 4 },
-  colCant: { flex: 1, textAlign: 'center' },
-  colPrice: { flex: 2, textAlign: 'right', paddingHorizontal: 4 },
-  colTotal: { flex: 2, textAlign: 'right', paddingHorizontal: 4 },
+  colCant: {
+    width: '12%',
+    textAlign: 'center',
+  },
+  colDescNum: {
+    width: '52%',
+    paddingHorizontal: 8,
+  },
+  colUnit: {
+    width: '18%',
+    textAlign: 'right',
+    paddingHorizontal: 4,
+  },
+  colSubtotal: {
+    width: '18%',
+    textAlign: 'right',
+    paddingHorizontal: 4,
+  },
+  // Table columns for completo
+  colDescComp: {
+    width: '36%',
+    paddingHorizontal: 8,
+  },
+  colTaxesComp: {
+    width: '16%',
+    textAlign: 'right',
+    paddingHorizontal: 4,
+  },
+  totalsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 15,
+  },
   totalsBox: {
-    alignSelf: 'flex-end',
-    width: 250,
-    borderTop: '2px solid #e2e8f0',
-    paddingTop: 10,
+    width: '45%',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    paddingVertical: 3,
   },
-  totalRowBold: {
+  totalRowText: {
+    fontSize: 9,
+    color: '#4A5568',
+  },
+  totalRowValue: {
+    fontSize: 9,
+    color: '#1A202C',
+    textAlign: 'right',
+  },
+  totalFinalBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
-    fontWeight: 'bold',
-    fontSize: 12,
+    backgroundColor: '#E2E8F0',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    marginTop: 4,
   },
-  notes: {
-    marginTop: 30,
+  totalFinalLabel: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#0B2046',
+  },
+  totalFinalValue: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#0B2046',
+  },
+  notesBox: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0066FF',
+  },
+  notesTitle: {
     fontSize: 9,
-    color: '#718096',
-    borderTop: '1px solid #eee',
-    paddingTop: 10,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    color: '#0B2046',
+  },
+  notesText: {
+    fontSize: 9,
+    color: '#4A5568',
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 45,
+    right: 45,
+  },
+  footerTerms: {
+    fontSize: 8,
+    color: '#1A202C',
+    marginBottom: 2,
+  },
+  footerDivider: {
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    marginVertical: 6,
+  },
+  footerThanks: {
+    fontSize: 8,
+    color: '#4A5568',
+    textAlign: 'center',
   },
   concatenatedRow: {
     flexDirection: 'row',
     marginBottom: 6,
-    lineHeight: 1.4,
-  },
-  validity: {
-    marginTop: 16,
-    fontSize: 8,
-    color: '#a0aec0',
-    textAlign: 'right',
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
 });
+
+const BackgroundDecor = () => (
+  <View fixed style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1 }}>
+    <Svg width="100%" height="100%">
+      {/* Left border thick gray strip */}
+      <Rect x="0" y="0" width="18" height="100%" fill="#E2E8F0" />
+      {/* Left blue accent angular polygon */}
+      <Polygon points="0,150 18,150 18,300 0,330" fill="#0066FF" />
+      {/* Top right blue decorative triangle */}
+      <Polygon points="512,0 612,0 612,70" fill="#0066FF" />
+      {/* Top right dark corner beneath */}
+      <Polygon points="542,0 612,0 612,50" fill="#0B2046" opacity="0.8" />
+      {/* Bottom right blue polygon accent */}
+      <Polygon points="562,792 612,792 612,700" fill="#0066FF" />
+    </Svg>
+  </View>
+);
 
 interface PdfProps {
   formato: 'completo' | 'resumido' | 'concatenado';
@@ -120,9 +272,10 @@ interface PdfProps {
   totales: DocumentTotals;
   tipoDocumento: 'COTIZACION' | 'FACTURA';
   seller?: SellerData | null;
+  numero?: string;
 }
 
-const fmt = (val: number) => `$${val.toLocaleString('es-CO', { minimumFractionDigits: 2 })}`;
+const fmt = (val: number) => `$${val.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
 
 export const CotizacionPDF = ({
   formato,
@@ -131,185 +284,220 @@ export const CotizacionPDF = ({
   totales,
   tipoDocumento,
   seller,
+  numero,
 }: PdfProps) => {
-  const docTitle =
-    tipoDocumento === 'COTIZACION'
-      ? 'COTIZACIÓN COMERCIAL'
-      : 'DOCUMENTO EQUIVALENTE / FACTURA';
+  const isCotizacion = tipoDocumento === 'COTIZACION';
+  const docTitle = isCotizacion ? 'COTIZACIÓN COMERCIAL' : 'FACTURA COMERCIAL';
+
+  const docNumber = numero ?? (isCotizacion ? 'BORRADOR' : 'BORRADOR');
+  const emissionDate = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+  const dueDate = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
 
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
+        <BackgroundDecor />
 
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>{docTitle}</Text>
-            <Text style={{ marginTop: 4, color: '#4a5568' }}>
-              Fecha: {new Date().toLocaleDateString('es-CO')}
+        {/* --- HEADER --- */}
+        <View style={styles.headerRow}>
+          <View style={styles.logoColumn}>
+            <Text style={styles.logoTitle}>
+              {seller?.nombre || 'GLOBAL TECH COMPONENTS'}
+            </Text>
+            <Text style={styles.logoSubtitle}>
+              {seller?.profesion || 'Computer Parts and Custom Gaming PC Builds'}
             </Text>
           </View>
-          <View style={styles.sellerBlock}>
-            <Text style={styles.sellerName}>
-              {seller?.nombre ?? 'Vendedor'}
+
+          <View style={styles.companyInfoColumn}>
+            <Text style={styles.companyAddressText}>
+              {seller?.direccion || 'Montería, Cordoba, Colombia'}
             </Text>
-            {seller?.profesion ? (
-              <Text style={styles.sellerMeta}>{seller.profesion}</Text>
-            ) : null}
-            {seller?.identificacion ? (
-              <Text style={styles.sellerMeta}>NIT/CC: {seller.identificacion}</Text>
-            ) : null}
-            {seller?.celular ? (
-              <Text style={styles.sellerMeta}>Tel: {seller.celular}</Text>
-            ) : null}
-            {seller?.email ? (
-              <Text style={styles.sellerMeta}>{seller.email}</Text>
-            ) : null}
-            {seller?.direccion ? (
-              <Text style={styles.sellerMeta}>{seller.direccion}</Text>
-            ) : null}
+          </View>
+
+          <View style={styles.documentMetaColumn}>
+            <Text style={styles.docTitle}>{docTitle}</Text>
+            <Text style={styles.docNit}>NIT: {seller?.identificacion || '901234567-8'}</Text>
+
+            <View style={styles.metaGrid}>
+              <Text style={styles.metaText}>
+                <Text style={styles.metaLabel}>{isCotizacion ? 'COTIZACIÓN No: ' : 'FACTURA No: '}</Text>
+                {docNumber}
+              </Text>
+              <Text style={styles.metaText}>
+                <Text style={styles.metaLabel}>FECHA DE EMISIÓN: </Text>
+                {emissionDate}
+              </Text>
+              <Text style={styles.metaText}>
+                <Text style={styles.metaLabel}>FECHA VENCIMIENTO: </Text>
+                {dueDate}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Client info */}
-        <View style={styles.clientInfo}>
+        {/* --- DATOS DEL CLIENTE --- */}
+        <View style={styles.clientSection}>
           <Text style={styles.sectionTitle}>Datos del Cliente</Text>
-          <Text style={styles.clientText}>
-            Nombre: {cliente.nombres || '_______________________'}
-          </Text>
-          <Text style={styles.clientText}>
-            Email: {cliente.email || '_______________________'}
-          </Text>
+          <View style={styles.clientInfoWrapper}>
+            <View style={styles.clientCol}>
+              <Text style={styles.clientTextRow}>
+                <Text style={{ fontWeight: 'bold' }}>Cliente: </Text>
+                {cliente.nombres || '_______________________'}
+              </Text>
+              <Text style={styles.clientTextRow}>
+                <Text style={{ fontWeight: 'bold' }}>Email: </Text>
+                {cliente.email || '_______________________'}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Items table — Completo */}
-        {formato === 'completo' && (
-          <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={styles.colDesc}>Descripción</Text>
-              <Text style={styles.colCant}>Cant.</Text>
-              <Text style={styles.colPrice}>P. Unit Base</Text>
-              <Text style={styles.colPrice}>Tax/Env/Imp/Gar</Text>
-              <Text style={styles.colTotal}>Subtotal</Text>
-            </View>
-            {items.map((item, i) => (
-              <View key={i} style={styles.tableRow}>
-                <Text style={styles.colDesc}>{item.descripcion}</Text>
-                <Text style={styles.colCant}>{item.cantidad}</Text>
-                <Text style={styles.colPrice}>{fmt(item.precioUnitarioBase)}</Text>
-                <View style={styles.colPrice}>
-                  {item.aplicaTax && (
-                    <Text style={{ fontSize: 8 }}>Tax: {fmt(item.taxUnitario)}</Text>
-                  )}
-                  {(item.envioUnitario > 0 || item.promocionEnvioUnitario > 0) && (
-                    <Text style={{ fontSize: 8 }}>
-                      Env: {fmt(item.envioUnitario - item.promocionEnvioUnitario)}
-                    </Text>
-                  )}
-                  {item.importacionUnitario > 0 && (
-                    <Text style={{ fontSize: 8 }}>Imp: {fmt(item.importacionUnitario)}</Text>
-                  )}
-                  {item.aplicaAmazon && (
-                    <Text style={{ fontSize: 8 }}>Gar: 2.25%</Text>
-                  )}
-                </View>
-                <Text style={styles.colTotal}>{fmt(item.subtotalLinea)}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        {/* --- DETALLE DE PRODUCTOS Y SERVICIOS --- */}
+        <View style={styles.tableWrapper}>
+          <Text style={styles.sectionTitle}>Detalle de Productos y Servicios</Text>
 
-        {/* Items table — Resumido */}
-        {formato === 'resumido' && (
-          <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={styles.colDesc}>Descripción</Text>
-              <Text style={styles.colCant}>Cant.</Text>
-              <Text style={styles.colPrice}>Cos. Unit. Final</Text>
-              <Text style={styles.colTotal}>Subtotal</Text>
-            </View>
-            {items.map((item, i) => (
-              <View key={i} style={styles.tableRow}>
-                <Text style={styles.colDesc}>{item.descripcion}</Text>
-                <Text style={styles.colCant}>{item.cantidad}</Text>
-                <Text style={styles.colPrice}>{fmt(item.costoUnitarioFinal)}</Text>
-                <Text style={styles.colTotal}>{fmt(item.subtotalLinea)}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Items — Concatenado: solo descripción y cantidad, sin precios */}
-        {formato === 'concatenado' && (
-          <View style={{ marginBottom: 20 }}>
-            {items.map((item, i) => (
-              <View key={i} style={styles.concatenatedRow}>
-                <Text>
-                  • {item.cantidad} UND x {item.descripcion}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Totals */}
-        <View style={styles.totalsBox}>
           {formato === 'completo' && (
-            <>
-              <View style={styles.totalRow}>
-                <Text>Subtotal Ítems:</Text>
-                <Text>{fmt(totales.subtotal)}</Text>
+            <View>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, styles.colCant]}>CANTIDAD</Text>
+                <Text style={[styles.tableHeaderText, styles.colDescComp]}>DESCRIPCIÓN DE ARTÍCULO / SERVICIO</Text>
+                <Text style={[styles.tableHeaderText, styles.colUnit]}>P. UNIT BASE</Text>
+                <Text style={[styles.tableHeaderText, styles.colTaxesComp]}>IMPUESTOS/ENVÍO</Text>
+                <Text style={[styles.tableHeaderText, styles.colSubtotal]}>SUBTOTAL</Text>
               </View>
-              {totales.totalTax > 0 && (
-                <View style={styles.totalRow}>
-                  <Text>Total Tax:</Text>
-                  <Text>{fmt(totales.totalTax)}</Text>
+              {items.map((item, i) => (
+                <View key={i} style={[styles.tableRow, { backgroundColor: i % 2 !== 0 ? '#F8FAFC' : '#FFFFFF' }]}>
+                  <Text style={[styles.tableRowText, styles.colCant]}>{item.cantidad}x</Text>
+                  <Text style={[styles.tableRowText, styles.colDescComp]}>{item.descripcion}</Text>
+                  <Text style={[styles.tableRowText, styles.colUnit]}>{fmt(item.precioUnitarioBase)}</Text>
+                  <View style={styles.colTaxesComp}>
+                    {item.aplicaTax && <Text style={{ fontSize: 7, color: '#4A5568' }}>Tax: {fmt(item.taxUnitario)}</Text>}
+                    {(item.envioUnitario > 0 || item.promocionEnvioUnitario > 0) && (
+                      <Text style={{ fontSize: 7, color: '#4A5568' }}>Envio: {fmt(item.envioUnitario - item.promocionEnvioUnitario)}</Text>
+                    )}
+                    {item.importacionUnitario > 0 && <Text style={{ fontSize: 7, color: '#4A5568' }}>Imp: {fmt(item.importacionUnitario)}</Text>}
+                    {item.aplicaAmazon && <Text style={{ fontSize: 7, color: '#4A5568' }}>Garantía: +2.25%</Text>}
+                    {!item.aplicaTax && item.envioUnitario <= 0 && item.importacionUnitario <= 0 && !item.aplicaAmazon && (
+                      <Text style={{ fontSize: 7, color: '#A0AEC0' }}>N/A</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.tableRowText, styles.colSubtotal]}>{fmt(item.subtotalLinea)}</Text>
                 </View>
-              )}
-              {totales.totalEnvio > 0 && (
-                <View style={styles.totalRow}>
-                  <Text>Descuento Envío:</Text>
-                  <Text>{fmt(totales.totalEnvio)}</Text>
-                </View>
-              )}
-              {totales.totalPromocionEnvio > 0 && (
-                <View style={styles.totalRow}>
-                  <Text>Promo Envío Gratis:</Text>
-                  <Text>-{fmt(totales.totalPromocionEnvio)}</Text>
-                </View>
-              )}
-              {totales.totalImportacion > 0 && (
-                <View style={styles.totalRow}>
-                  <Text>Total Importación:</Text>
-                  <Text>{fmt(totales.totalImportacion)}</Text>
-                </View>
-              )}
-              {totales.totalAmazon > 0 && (
-                <View style={styles.totalRow}>
-                  <Text>Garantía Tasa de Cambio:</Text>
-                  <Text>{fmt(totales.totalAmazon)}</Text>
-                </View>
-              )}
-            </>
+              ))}
+            </View>
           )}
-          <View style={styles.totalRowBold}>
-            <Text>TOTAL A PAGAR:</Text>
-            <Text>{fmt(totales.totalFinal)}</Text>
+
+          {formato === 'resumido' && (
+            <View>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderText, styles.colCant]}>CANTIDAD</Text>
+                <Text style={[styles.tableHeaderText, styles.colDescNum]}>DESCRIPCIÓN DE ARTÍCULO / SERVICIO</Text>
+                <Text style={[styles.tableHeaderText, styles.colUnit]}>P. UNITARIO (COP)</Text>
+                <Text style={[styles.tableHeaderText, styles.colSubtotal]}>SUBTOTAL (COP)</Text>
+              </View>
+              {items.map((item, i) => (
+                <View key={i} style={[styles.tableRow, { backgroundColor: i % 2 !== 0 ? '#F8FAFC' : '#FFFFFF' }]}>
+                  <Text style={[styles.tableRowText, styles.colCant]}>{item.cantidad}x</Text>
+                  <Text style={[styles.tableRowText, styles.colDescNum]}>{item.descripcion}</Text>
+                  <Text style={[styles.tableRowText, styles.colUnit]}>{fmt(item.costoUnitarioFinal)}</Text>
+                  <Text style={[styles.tableRowText, styles.colSubtotal]}>{fmt(item.subtotalLinea)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {formato === 'concatenado' && (
+            <View style={{ marginTop: 10 }}>
+              {items.map((item, i) => (
+                <View key={i} style={styles.concatenatedRow}>
+                  <Text style={{ fontSize: 10, color: '#1A202C' }}>
+                    <Text style={{ fontWeight: 'bold' }}>{item.cantidad}x </Text>
+                    {item.descripcion}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* --- TOTALES --- */}
+        <View style={styles.totalsContainer}>
+          <View style={styles.totalsBox}>
+            {formato === 'completo' && (
+              <>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalRowText}>Subtotal Ítems:</Text>
+                  <Text style={styles.totalRowValue}>{fmt(totales.subtotal)}</Text>
+                </View>
+                {totales.totalTax > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalRowText}>Total Tax:</Text>
+                    <Text style={styles.totalRowValue}>{fmt(totales.totalTax)}</Text>
+                  </View>
+                )}
+                {totales.totalEnvio > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalRowText}>Costo Envío:</Text>
+                    <Text style={styles.totalRowValue}>{fmt(totales.totalEnvio)}</Text>
+                  </View>
+                )}
+                {totales.totalPromocionEnvio > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalRowText}>Promo Envío Gratis:</Text>
+                    <Text style={[styles.totalRowValue, { color: '#E53E3E' }]}>-{fmt(totales.totalPromocionEnvio)}</Text>
+                  </View>
+                )}
+                {totales.totalImportacion > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalRowText}>Total Importación:</Text>
+                    <Text style={styles.totalRowValue}>{fmt(totales.totalImportacion)}</Text>
+                  </View>
+                )}
+                {totales.totalAmazon > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalRowText}>Garantía/Tasa C.:</Text>
+                    <Text style={styles.totalRowValue}>{fmt(totales.totalAmazon)}</Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Si es resumido o concatenado, solo muestra subtotal general en crudo si quisiera, o directamente el total */}
+            {formato !== 'completo' && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalRowText}>SUBTOTAL BRUTO:</Text>
+                <Text style={styles.totalRowValue}>{fmt(totales.subtotal)}</Text>
+              </View>
+            )}
+
+            <View style={styles.totalFinalBox}>
+              <Text style={styles.totalFinalLabel}>TOTAL A PAGAR</Text>
+              <Text style={styles.totalFinalValue}>{fmt(totales.totalFinal)} (COP)</Text>
+            </View>
           </View>
         </View>
 
+        {/* --- NOTAS --- */}
         {cliente.notas && (
-          <View style={styles.notes}>
-            <Text style={{ fontWeight: 'bold' }}>Notas y Observaciones:</Text>
-            <Text>{cliente.notas}</Text>
+          <View style={styles.notesBox}>
+            <Text style={styles.notesTitle}>Notas y Observaciones:</Text>
+            <Text style={styles.notesText}>{cliente.notas}</Text>
           </View>
         )}
 
-        <Text style={styles.validity}>
-          Válida por 15 días calendario a partir de la fecha de emisión.
-        </Text>
+        {/* --- FOOTER --- */}
+        <View fixed style={styles.footer}>
+          <Text style={{ fontWeight: 'bold', fontSize: 9, marginBottom: 4 }}>Términos y Condiciones:</Text>
+          <Text style={styles.footerTerms}>Garantía estándar según fabricante. La validez de este documento es de 15 días calendario.</Text>
+          <View style={styles.footerDivider} />
+          <Text style={styles.footerThanks}>
+            Gracias por confiar en <Text style={{ fontWeight: 'bold' }}>{seller?.nombre || 'GLOBAL TECH COMPONENTS'}</Text> {seller?.celular && ` | Tel: ${seller?.celular}`} {seller?.email && ` | ${seller?.email}`}
+          </Text>
+        </View>
 
       </Page>
     </Document>
   );
 };
+

@@ -51,6 +51,7 @@ export default function DocumentDetailClient({ doc }: { doc: NonNullable<Documen
   return (
     <PDFDownloadButton
       formato="completo"
+      numero={doc.numero}
       cliente={{ nombres: doc.customer.nombres, email: doc.customer.email ?? "", notas: doc.observaciones ?? "" }}
       items={items}
       totales={totales}
