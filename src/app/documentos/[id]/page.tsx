@@ -7,8 +7,8 @@ import { getDocumentById } from "@/app/actions/documents";
 import DocumentDetailClient from "@/components/documentos/DocumentDetailClient";
 import DocumentActionsClient from "@/components/documentos/DocumentActionsClient";
 
-const fmtDec = (n: number) =>
-  n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtDec = (n: number | { toString(): string }) =>
+  Number(n).toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 export default async function DocumentoDetailPage({
   params,
@@ -208,37 +208,37 @@ export default async function DocumentoDetailPage({
       <div className="flex justify-end">
         <div className="w-full sm:w-72 bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl p-5 space-y-2.5">
           {/* Subtotal base — solo si hay extras que cambien el total */}
-          {doc.subtotal < doc.totalFinal && (
+          {Number(doc.subtotal) < Number(doc.totalFinal) && (
             <div className="flex justify-between text-sm text-[var(--text-1)]">
               <span>Subtotal base</span>
               <span>${fmtDec(doc.subtotal)}</span>
             </div>
           )}
-          {doc.totalTax > 0 && (
+          {Number(doc.totalTax) > 0 && (
             <div className="flex justify-between text-sm text-[var(--text-1)]">
               <span>Tax</span>
               <span>+${fmtDec(doc.totalTax)}</span>
             </div>
           )}
-          {doc.totalEnvio > 0 && (
+          {Number(doc.totalEnvio) > 0 && (
             <div className="flex justify-between text-sm text-[var(--text-1)]">
               <span>Descuento envío</span>
               <span>+${fmtDec(doc.totalEnvio)}</span>
             </div>
           )}
-          {doc.totalPromocionEnvio > 0 && (
+          {Number(doc.totalPromocionEnvio) > 0 && (
             <div className="flex justify-between text-sm text-[var(--text-1)]">
               <span>Promo envío gratis</span>
               <span className="text-teal-500">−${fmtDec(doc.totalPromocionEnvio)}</span>
             </div>
           )}
-          {doc.totalImportacion > 0 && (
+          {Number(doc.totalImportacion) > 0 && (
             <div className="flex justify-between text-sm text-[var(--text-1)]">
               <span>Importación</span>
               <span>+${fmtDec(doc.totalImportacion)}</span>
             </div>
           )}
-          {doc.totalAmazon > 0 && (
+          {Number(doc.totalAmazon) > 0 && (
             <div className="flex justify-between text-sm text-[var(--text-1)]">
               <span>Garantía Tasa de Cambio</span>
               <span>+${fmtDec(doc.totalAmazon)}</span>

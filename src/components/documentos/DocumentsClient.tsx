@@ -3,6 +3,7 @@
 import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
@@ -21,8 +22,8 @@ import type { DocumentListItem } from "@/app/actions/documents";
 import { archiveDocument } from "@/app/actions/documents";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-const fmtDec = (n: number) =>
-  n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtDec = (n: number | { toString(): string }) =>
+  Number(n).toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 type TipoFilter = "TODOS" | "COTIZACION" | "FACTURA" | "ARCHIVADAS";
 
@@ -138,17 +139,22 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
     const active = docs.filter((d) => d.estado !== "ARCHIVADA");
     const cotizaciones = active.filter((d) => d.tipo === "COTIZACION").length;
     const facturas = active.filter((d) => d.tipo === "FACTURA").length;
-    const totalCOP = active.reduce((sum, d) => sum + d.totalFinal, 0);
+    const totalCOP = active.reduce((sum, d) => sum + Number(d.totalFinal), 0);
     const archivadas = docs.filter((d) => d.estado === "ARCHIVADA").length;
     return { total: active.length, cotizaciones, facturas, totalCOP, archivadas };
   }, [docs]);
 
   const isFiltered = search.trim() !== "" || tipoFilter !== "TODOS";
 
-  const handleArchiveRow = (e: React.MouseEvent, id: string) => {
+  const handleArchiveRow = (e: React.MouseEvent, id: string, estado: string) => {
     e.stopPropagation();
     startArchive(async () => {
-      await archiveDocument(id);
+      const result = await archiveDocument(id);
+      if (result.success) {
+        toast.success(estado === "ARCHIVADA" ? "Documento restaurado" : "Documento archivado");
+      } else {
+        toast.error(result.error ?? "Error al archivar");
+      }
       router.refresh();
     });
   };
@@ -302,7 +308,7 @@ export default function DocumentsClient({ docs }: { docs: DocumentListItem[] }) 
                       </td>
                       <td className="px-3 py-3.5 text-right">
                         <button
-                          onClick={(e) => handleArchiveRow(e, doc.id)}
+                          onClick={(e) => handleArchiveRow(e, doc.id, doc.estado)}
                           title={doc.estado === "ARCHIVADA" ? "Desarchivar" : "Archivar"}
                           className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-2)] hover:text-[var(--text-0)] transition-all"
                         >

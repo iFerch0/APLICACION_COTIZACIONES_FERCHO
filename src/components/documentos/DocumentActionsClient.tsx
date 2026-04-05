@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Pencil, Archive, ArchiveRestore, Trash2, AlertTriangle } from "lucide-react";
 import {
   Dialog,
@@ -51,7 +52,9 @@ export default function DocumentActionsClient({
       if (!result.success) {
         setEstado(prev);
         setArchiveError(result.error ?? "Error al archivar.");
+        toast.error(result.error ?? "Error al archivar");
       } else {
+        toast.success(optimistic === "ARCHIVADA" ? "Documento archivado" : "Documento restaurado");
         router.refresh();
       }
     });
@@ -63,7 +66,9 @@ export default function DocumentActionsClient({
       const result = await deleteDocument(docId);
       if (!result.success) {
         setDeleteError(result.error ?? "Error al eliminar.");
+        toast.error(result.error ?? "Error al eliminar");
       } else {
+        toast.success("Documento eliminado");
         setDeleteOpen(false);
         router.push("/documentos");
       }

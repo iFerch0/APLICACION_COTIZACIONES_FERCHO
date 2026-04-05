@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { User, Phone, Mail, MapPin, Briefcase, Hash, CheckCircle, AlertCircle, Save } from "lucide-react";
+import { toast } from "sonner";
 import { upsertSellerProfile, type SellerData } from "@/app/actions/seller";
 
 const inputBase =
@@ -68,10 +69,12 @@ export default function SellerProfileForm({ initial }: { initial: SellerData | n
     setIsSaving(false);
     if (result.success) {
       setStatus("success");
+      toast.success("Perfil actualizado");
       setTimeout(() => setStatus("idle"), 4000);
     } else {
       setStatus("error");
       setErrorMsg(result.error ?? "Error desconocido.");
+      toast.error(result.error ?? "Error al actualizar perfil");
     }
   };
 

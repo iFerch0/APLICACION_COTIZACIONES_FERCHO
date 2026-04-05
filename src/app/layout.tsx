@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 import NavBar from "@/components/layout/NavBar";
 import ThemeProvider from "@/components/layout/ThemeProvider";
@@ -24,6 +25,14 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${outfit.variable} font-sans antialiased`}>
         <ThemeProvider>
+          <Toaster
+            position="top-right"
+            richColors
+            closeButton
+            toastOptions={{
+              duration: 4000,
+            }}
+          />
           <div className="min-h-screen bg-[var(--surface-0)] flex flex-col">
             <NavBar />
             <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-6 lg:px-10 py-8">

@@ -1,8 +1,26 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
+import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { ItemCalculated, DocumentTotals, ItemInput } from "@/lib/calculator";
+import { saveDocumentSchema, updateDocumentSchema } from "@/lib/schemas";
+import { z } from "zod";
+
+// ── Numeración secuencial ─────────────────────────────────────────────────────
+async function generarNumeroDocumento(
+  tipo: "COTIZACION" | "FACTURA"
+): Promise<string> {
+  const anio = new Date().getFullYear();
+  const prefijo = tipo === "COTIZACION" ? "COT" : "FAC";
+
+  const seq = await prisma.documentSequence.upsert({
+    where: { tipo },
+    update: { secuencia: { increment: 1 } },
+    create: { tipo, anio, secuencia: 1 },
+  });
+
+  return `${prefijo}-${anio}-${String(seq.secuencia).padStart(4, "0")}`;
+}
 
 // ── EditDocumentData ──────────────────────────────────────────────────────────
 export interface EditDocumentData {
@@ -31,89 +49,92 @@ export interface ImportedCotizacionData {
 }
 
 // ── saveDocument ─────────────────────────────────────────────────────────────
-export async function saveDocument(data: {
-  tipo: "COTIZACION" | "FACTURA";
-  clienteId: string;
-  items: ItemCalculated[];
-  totales: DocumentTotals;
-  observaciones?: string;
-  cotizacionOrigenId?: string;
-  margenPorcentaje?: number;
-  margenTipo?: string;
-  margenRedondeo?: number;
-}) {
-  let seller = await prisma.sellerProfile.findFirst();
-  if (!seller) {
-    seller = await prisma.sellerProfile.create({
+export async function saveDocument(data: unknown) {
+  try {
+    const validated = saveDocumentSchema.parse(data);
+
+    let seller = await prisma.sellerProfile.findFirst();
+    if (!seller) {
+      seller = await prisma.sellerProfile.create({
+        data: {
+          nombre: "Fernando Rhenals",
+          email: "ferchotecnico@example.com",
+        },
+      });
+    }
+
+    const numero = await generarNumeroDocumento(validated.tipo);
+
+    const result = await prisma.commercialDocument.create({
       data: {
-        nombre: "Fernando Rhenals",
-        email: "ferchotecnico@example.com",
+        tipo: validated.tipo,
+        numero,
+        sellerId: seller.id,
+        customerId: validated.clienteId,
+        observaciones: validated.observaciones,
+        subtotal: validated.totales.subtotal,
+        totalTax: validated.totales.totalTax,
+        totalEnvio: validated.totales.totalEnvio,
+        totalPromocionEnvio: validated.totales.totalPromocionEnvio,
+        totalAmazon: validated.totales.totalAmazon,
+        totalImportacion: validated.totales.totalImportacion,
+        total4x1000: 0,
+        totalFinal: validated.totales.totalFinal,
+        margenPorcentaje: validated.margenPorcentaje,
+        margenTipo: validated.margenTipo,
+        margenRedondeo: validated.margenRedondeo,
+        cotizacionOrigenId: validated.cotizacionOrigenId ?? null,
+        items: {
+          create: validated.items.map((item, index) => ({
+            orden: index,
+            descripcion: item.descripcion,
+            cantidad: item.cantidad,
+            precioUnitarioBase: item.precioUnitarioBase,
+            tipoItem: item.tipoItem,
+            fuenteCompra: item.fuenteCompra,
+            precioOriginal: item.precioOriginal ?? null,
+            monedaOriginal: item.monedaOriginal ?? "COP",
+            grupoId: item.grupoId ?? null,
+            grupoLabel: item.grupoLabel ?? null,
+            aplicaTax: item.aplicaTax,
+            taxUnitario: item.taxUnitario,
+            envioUnitario: item.envioUnitario,
+            promocionEnvioUnitario: item.promocionEnvioUnitario,
+            importacionUnitario: item.importacionUnitario,
+            aplicaAmazon: item.aplicaAmazon,
+            amazonUnitario: item.amazonUnitarioCalculado,
+            costoUnitarioFinal: item.costoUnitarioFinal,
+            subtotalLinea: item.subtotalLinea,
+            aplica4x1000: false,
+            valor4x1000Linea: 0,
+          })),
+        },
       },
     });
+
+    // Si viene de una cotización, marcarla como FACTURADA
+    if (validated.cotizacionOrigenId) {
+      await prisma.commercialDocument.update({
+        where: { id: validated.cotizacionOrigenId },
+        data: { estado: "FACTURADA" },
+      });
+    }
+
+    revalidatePath("/documentos");
+    revalidatePath("/");
+
+    return { success: true, document: result };
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: "Datos inválidos",
+        details: error.issues,
+      };
+    }
+    console.error("[saveDocument] Error:", error);
+    return { success: false, error: "Error al guardar el documento." };
   }
-
-  const randomNumero = `${data.tipo === "COTIZACION" ? "COT" : "FAC"}-${Date.now().toString().slice(-6)}`;
-
-  const result = await prisma.commercialDocument.create({
-    data: {
-      tipo: data.tipo,
-      numero: randomNumero,
-      sellerId: seller.id,
-      customerId: data.clienteId,
-      observaciones: data.observaciones,
-      ...data.totales,
-      total4x1000: 0,
-      items: {
-        create: data.items.map((item, index) => ({
-          orden: index,
-          descripcion: item.descripcion,
-          cantidad: item.cantidad,
-          precioUnitarioBase: item.precioUnitarioBase,
-          aplicaTax: item.aplicaTax,
-          taxUnitario: item.taxUnitario,
-          envioUnitario: item.envioUnitario,
-          promocionEnvioUnitario: item.promocionEnvioUnitario,
-          importacionUnitario: item.importacionUnitario,
-          aplicaAmazon: item.aplicaAmazon,
-          amazonUnitario: item.amazonUnitarioCalculado,
-          costoUnitarioFinal: item.costoUnitarioFinal,
-          subtotalLinea: item.subtotalLinea,
-          aplica4x1000: false,
-          valor4x1000Linea: 0,
-          totalLinea: item.subtotalLinea,
-        })),
-      },
-    },
-  });
-
-  // Guardar margen via SQL directo (compatible con Prisma client sin regenerar)
-  if (data.margenPorcentaje !== undefined) {
-    try {
-      await prisma.$executeRaw`
-        UPDATE "CommercialDocument"
-        SET "margenPorcentaje" = ${data.margenPorcentaje},
-            "margenTipo"       = ${data.margenTipo ?? 'base'},
-            "margenRedondeo"   = ${data.margenRedondeo ?? 0}
-        WHERE "id" = ${result.id}
-      `;
-    } catch { /* columnas aún no migradas */ }
-  }
-
-  // Vincular con cotización origen via SQL directo (compatible con Prisma client sin regenerar)
-  if (data.cotizacionOrigenId) {
-    await prisma.$executeRaw`
-      UPDATE "CommercialDocument"
-      SET "cotizacionOrigenId" = ${data.cotizacionOrigenId}
-      WHERE "id" = ${result.id}
-    `;
-    await prisma.$executeRaw`
-      UPDATE "CommercialDocument"
-      SET "estado" = 'FACTURADA'
-      WHERE "id" = ${data.cotizacionOrigenId}
-    `;
-  }
-
-  return { success: true, document: result };
 }
 
 // ── getDocuments ──────────────────────────────────────────────────────────────
@@ -163,7 +184,6 @@ export interface FacturaGeneradaRef {
 }
 
 // ── getDocumentById ───────────────────────────────────────────────────────────
-// Usa raw SQL para trazabilidad (compatible con Prisma client sin regenerar)
 export async function getDocumentById(id: string) {
   const doc = await prisma.commercialDocument.findUnique({
     where: { id },
@@ -176,30 +196,37 @@ export async function getDocumentById(id: string) {
 
   if (!doc) return null;
 
-  // Obtener cotizacionOrigenId desde la BD
-  const rawDoc = await prisma.$queryRaw<Array<{ cotizacionOrigenId: string | null }>>`
-    SELECT "cotizacionOrigenId" FROM "CommercialDocument" WHERE "id" = ${id}
-  `;
-  const cotizacionOrigenId = rawDoc[0]?.cotizacionOrigenId ?? null;
+  // Obtener cotizacionOrigenId directamente desde el documento
+  const cotizacionOrigenId = doc.cotizacionOrigenId ?? null;
 
   // Buscar cotización origen si aplica
   let cotizacionOrigen: CotizacionOrigenRef | null = null;
   if (cotizacionOrigenId) {
-    const rows = await prisma.$queryRaw<CotizacionOrigenRef[]>`
-      SELECT "id", "numero", "fecha" FROM "CommercialDocument" WHERE "id" = ${cotizacionOrigenId}
-    `;
-    cotizacionOrigen = rows[0] ?? null;
+    const origen = await prisma.commercialDocument.findUnique({
+      where: { id: cotizacionOrigenId },
+      select: { id: true, numero: true, fecha: true },
+    });
+    cotizacionOrigen = origen ?? null;
   }
 
-  // Buscar facturas generadas si es cotización
+    // Buscar facturas generadas si es cotización
   let facturasGeneradas: FacturaGeneradaRef[] = [];
   if (doc.tipo === "COTIZACION") {
-    facturasGeneradas = await prisma.$queryRaw<FacturaGeneradaRef[]>`
-      SELECT "id", "numero", "fecha", "totalFinal", "estado"
-      FROM "CommercialDocument"
-      WHERE "cotizacionOrigenId" = ${id}
-      ORDER BY "createdAt" DESC
-    `;
+    const facturas = await prisma.commercialDocument.findMany({
+      where: { cotizacionOrigenId: id },
+      select: {
+        id: true,
+        numero: true,
+        fecha: true,
+        totalFinal: true,
+        estado: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    facturasGeneradas = facturas.map((f) => ({
+      ...f,
+      totalFinal: Number(f.totalFinal),
+    }));
   }
 
   return { ...doc, cotizacionOrigenId, cotizacionOrigen, facturasGeneradas };
@@ -208,7 +235,9 @@ export async function getDocumentById(id: string) {
 export type DocumentDetail = Awaited<ReturnType<typeof getDocumentById>>;
 
 // ── getDocumentForConversion ──────────────────────────────────────────────────
-export async function getDocumentForConversion(id: string): Promise<ImportedCotizacionData | null> {
+export async function getDocumentForConversion(
+  id: string
+): Promise<ImportedCotizacionData | null> {
   const doc = await prisma.commercialDocument.findUnique({
     where: { id },
     include: {
@@ -223,12 +252,18 @@ export async function getDocumentForConversion(id: string): Promise<ImportedCoti
     id: `item-${item.orden}-${Date.now()}`,
     descripcion: item.descripcion,
     cantidad: item.cantidad,
-    precioUnitarioBase: item.precioUnitarioBase,
+    precioUnitarioBase: Number(item.precioUnitarioBase),
+    tipoItem: (item.tipoItem as "PRODUCTO" | "SERVICIO") ?? "PRODUCTO",
+    fuenteCompra: (item.fuenteCompra as "LOCAL" | "AMAZON" | "EXTERIOR_OTRO") ?? "LOCAL",
+    precioOriginal: item.precioOriginal ? Number(item.precioOriginal) : undefined,
+    monedaOriginal: item.monedaOriginal ?? undefined,
+    grupoId: item.grupoId ?? undefined,
+    grupoLabel: item.grupoLabel ?? undefined,
     aplicaTax: item.aplicaTax,
-    taxUnitario: item.taxUnitario,
-    envioUnitario: item.envioUnitario,
-    promocionEnvioUnitario: item.promocionEnvioUnitario,
-    importacionUnitario: item.importacionUnitario,
+    taxUnitario: Number(item.taxUnitario),
+    envioUnitario: Number(item.envioUnitario),
+    promocionEnvioUnitario: Number(item.promocionEnvioUnitario),
+    importacionUnitario: Number(item.importacionUnitario),
     aplicaAmazon: item.aplicaAmazon,
   }));
 
@@ -264,21 +299,22 @@ export async function getCotizacionesParaImportar(search?: string) {
     take: 20,
   });
 
-  // Contar facturas vinculadas via SQL (compatible con Prisma client sin regenerar)
+  // Contar facturas vinculadas usando Prisma groupBy
   const ids = cotizaciones.map((c) => c.id);
   const countMap = new Map<string, number>();
 
   if (ids.length > 0) {
-    const rows = await prisma.$queryRaw<Array<{ cotizacionOrigenId: string; cnt: bigint }>>(
-      Prisma.sql`
-        SELECT "cotizacionOrigenId", COUNT(*) as cnt
-        FROM "CommercialDocument"
-        WHERE "cotizacionOrigenId" IN (${Prisma.join(ids)})
-        GROUP BY "cotizacionOrigenId"
-      `
-    );
-    for (const row of rows) {
-      countMap.set(row.cotizacionOrigenId, Number(row.cnt));
+    const grouped = await prisma.commercialDocument.groupBy({
+      by: ["cotizacionOrigenId"],
+      where: {
+        cotizacionOrigenId: { in: ids },
+      },
+      _count: { id: true },
+    });
+    for (const row of grouped) {
+      if (row.cotizacionOrigenId) {
+        countMap.set(row.cotizacionOrigenId, row._count.id);
+      }
     }
   }
 
@@ -293,7 +329,9 @@ export type CotizacionParaImportar = Awaited<
 >[number];
 
 // ── getDocumentForEdit ────────────────────────────────────────────────────────
-export async function getDocumentForEdit(id: string): Promise<EditDocumentData | null> {
+export async function getDocumentForEdit(
+  id: string
+): Promise<EditDocumentData | null> {
   const doc = await prisma.commercialDocument.findUnique({
     where: { id },
     include: {
@@ -308,30 +346,25 @@ export async function getDocumentForEdit(id: string): Promise<EditDocumentData |
     id: `item-${item.orden}-${Date.now()}`,
     descripcion: item.descripcion,
     cantidad: item.cantidad,
-    precioUnitarioBase: item.precioUnitarioBase,
+    precioUnitarioBase: Number(item.precioUnitarioBase),
+    tipoItem: (item.tipoItem as "PRODUCTO" | "SERVICIO") ?? "PRODUCTO",
+    fuenteCompra: (item.fuenteCompra as "LOCAL" | "AMAZON" | "EXTERIOR_OTRO") ?? "LOCAL",
+    precioOriginal: item.precioOriginal ? Number(item.precioOriginal) : undefined,
+    monedaOriginal: item.monedaOriginal ?? undefined,
+    grupoId: item.grupoId ?? undefined,
+    grupoLabel: item.grupoLabel ?? undefined,
     aplicaTax: item.aplicaTax,
-    taxUnitario: item.taxUnitario,
-    envioUnitario: item.envioUnitario,
-    promocionEnvioUnitario: item.promocionEnvioUnitario,
-    importacionUnitario: item.importacionUnitario,
+    taxUnitario: Number(item.taxUnitario),
+    envioUnitario: Number(item.envioUnitario),
+    promocionEnvioUnitario: Number(item.promocionEnvioUnitario),
+    importacionUnitario: Number(item.importacionUnitario),
     aplicaAmazon: item.aplicaAmazon,
   }));
 
-  let margenPorcentaje = 0;
-  let margenTipo: "base" | "total" = "base";
-  let margenRedondeo: 0 | 1000 | 5000 = 0;
-  try {
-    const rawMargen = await prisma.$queryRaw<Array<{
-      margenPorcentaje: number;
-      margenTipo: string;
-      margenRedondeo: number;
-    }>>`SELECT "margenPorcentaje", "margenTipo", "margenRedondeo" FROM "CommercialDocument" WHERE "id" = ${doc.id}`;
-    if (rawMargen[0]) {
-      margenPorcentaje = rawMargen[0].margenPorcentaje ?? 0;
-      margenTipo = (rawMargen[0].margenTipo ?? "base") as "base" | "total";
-      margenRedondeo = (rawMargen[0].margenRedondeo ?? 0) as 0 | 1000 | 5000;
-    }
-  } catch { /* columnas aún no migradas */ }
+  // Obtener margen directamente desde el documento (campos ya en schema)
+  const margenPorcentaje = Number(doc.margenPorcentaje) ?? 0;
+  const margenTipo = (doc.margenTipo ?? "base") as "base" | "total";
+  const margenRedondeo = (doc.margenRedondeo ?? 0) as 0 | 1000 | 5000;
 
   return {
     documentId: doc.id,
@@ -351,31 +384,42 @@ export async function getDocumentForEdit(id: string): Promise<EditDocumentData |
 // ── updateDocument ────────────────────────────────────────────────────────────
 export async function updateDocument(
   id: string,
-  data: {
-    clienteId: string;
-    items: ItemCalculated[];
-    totales: DocumentTotals;
-    observaciones?: string;
-    margenPorcentaje?: number;
-    margenTipo?: string;
-    margenRedondeo?: number;
-  }
+  data: unknown
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await prisma.commercialDocumentItem.deleteMany({ where: { documentId: id } });
+    const validated = updateDocumentSchema.parse(data);
+
+    await prisma.commercialDocumentItem.deleteMany({
+      where: { documentId: id },
+    });
     await prisma.commercialDocument.update({
       where: { id },
       data: {
-        customerId: data.clienteId,
-        observaciones: data.observaciones,
-        ...data.totales,
+        customerId: validated.clienteId,
+        observaciones: validated.observaciones,
+        subtotal: validated.totales.subtotal,
+        totalTax: validated.totales.totalTax,
+        totalEnvio: validated.totales.totalEnvio,
+        totalPromocionEnvio: validated.totales.totalPromocionEnvio,
+        totalAmazon: validated.totales.totalAmazon,
+        totalImportacion: validated.totales.totalImportacion,
         total4x1000: 0,
+        totalFinal: validated.totales.totalFinal,
+        margenPorcentaje: validated.margenPorcentaje,
+        margenTipo: validated.margenTipo,
+        margenRedondeo: validated.margenRedondeo,
         items: {
-          create: data.items.map((item, index) => ({
+          create: validated.items.map((item, index) => ({
             orden: index,
             descripcion: item.descripcion,
             cantidad: item.cantidad,
             precioUnitarioBase: item.precioUnitarioBase,
+            tipoItem: item.tipoItem,
+            fuenteCompra: item.fuenteCompra,
+            precioOriginal: item.precioOriginal ?? null,
+            monedaOriginal: item.monedaOriginal ?? "COP",
+            grupoId: item.grupoId ?? null,
+            grupoLabel: item.grupoLabel ?? null,
             aplicaTax: item.aplicaTax,
             taxUnitario: item.taxUnitario,
             envioUnitario: item.envioUnitario,
@@ -387,55 +431,65 @@ export async function updateDocument(
             subtotalLinea: item.subtotalLinea,
             aplica4x1000: false,
             valor4x1000Linea: 0,
-            totalLinea: item.subtotalLinea,
           })),
         },
       },
     });
-    // Guardar margen via SQL directo
-    if (data.margenPorcentaje !== undefined) {
-      try {
-        await prisma.$executeRaw`
-          UPDATE "CommercialDocument"
-          SET "margenPorcentaje" = ${data.margenPorcentaje},
-              "margenTipo"       = ${data.margenTipo ?? 'base'},
-              "margenRedondeo"   = ${data.margenRedondeo ?? 0}
-          WHERE "id" = ${id}
-        `;
-      } catch { /* columnas aún no migradas */ }
-    }
+
+    revalidatePath("/documentos");
+    revalidatePath(`/documentos/${id}`);
+
     return { success: true };
-  } catch {
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: `Datos inválidos: ${error.issues.map((i) => i.message).join(", ")}`,
+      };
+    }
+    console.error("[updateDocument] Error:", error);
     return { success: false, error: "Error al actualizar el documento." };
   }
 }
 
 // ── deleteDocument ────────────────────────────────────────────────────────────
-export async function deleteDocument(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteDocument(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
   try {
-    // Prevent deleting a cotizacion that has linked facturas
-    const linkedFacturas = await prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT "id" FROM "CommercialDocument" WHERE "cotizacionOrigenId" = ${id}
-    `;
-    if (linkedFacturas.length > 0) {
-      return { success: false, error: "No puedes eliminar una cotización que tiene facturas asociadas." };
+    // Verificar si hay facturas vinculadas a esta cotización
+    const linkedFacturasCount = await prisma.commercialDocument.count({
+      where: { cotizacionOrigenId: id },
+    });
+    if (linkedFacturasCount > 0) {
+      return {
+        success: false,
+        error:
+          "No puedes eliminar una cotización que tiene facturas asociadas.",
+      };
     }
 
-    // If this factura came from a cotizacion, reset that cotizacion's estado
-    const rawDoc = await prisma.$queryRaw<Array<{ cotizacionOrigenId: string | null }>>`
-      SELECT "cotizacionOrigenId" FROM "CommercialDocument" WHERE "id" = ${id}
-    `;
-    const cotizacionOrigenId = rawDoc[0]?.cotizacionOrigenId;
-    if (cotizacionOrigenId) {
-      await prisma.$executeRaw`
-        UPDATE "CommercialDocument" SET "estado" = 'BORRADOR' WHERE "id" = ${cotizacionOrigenId}
-      `;
+    // Si este documento (factura) vino de una cotización, restaurar estado
+    const doc = await prisma.commercialDocument.findUnique({
+      where: { id },
+      select: { cotizacionOrigenId: true },
+    });
+    if (doc?.cotizacionOrigenId) {
+      await prisma.commercialDocument.update({
+        where: { id: doc.cotizacionOrigenId },
+        data: { estado: "BORRADOR" },
+      });
     }
 
-    // Items cascade-delete automatically (onDelete: Cascade in schema)
+    // Items se eliminan en cascada (onDelete: Cascade en schema)
     await prisma.commercialDocument.delete({ where: { id } });
+
+    revalidatePath("/documentos");
+    revalidatePath("/");
+
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error("[deleteDocument] Error:", error);
     return { success: false, error: "Error al eliminar el documento." };
   }
 }
@@ -445,15 +499,24 @@ export async function archiveDocument(
   id: string
 ): Promise<{ success: boolean; newEstado?: string; error?: string }> {
   try {
-    const rawDoc = await prisma.$queryRaw<Array<{ estado: string }>>`
-      SELECT "estado" FROM "CommercialDocument" WHERE "id" = ${id}
-    `;
-    if (!rawDoc[0]) return { success: false, error: "Documento no encontrado." };
+    const doc = await prisma.commercialDocument.findUnique({
+      where: { id },
+      select: { estado: true },
+    });
+    if (!doc) return { success: false, error: "Documento no encontrado." };
 
-    const newEstado = rawDoc[0].estado === "ARCHIVADA" ? "BORRADOR" : "ARCHIVADA";
-    await prisma.commercialDocument.update({ where: { id }, data: { estado: newEstado } });
+    const newEstado = doc.estado === "ARCHIVADA" ? "BORRADOR" : "ARCHIVADA";
+    await prisma.commercialDocument.update({
+      where: { id },
+      data: { estado: newEstado },
+    });
+
+    revalidatePath("/documentos");
+    revalidatePath(`/documentos/${id}`);
+
     return { success: true, newEstado };
-  } catch {
+  } catch (error) {
+    console.error("[archiveDocument] Error:", error);
     return { success: false, error: "Error al archivar el documento." };
   }
 }

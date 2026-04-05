@@ -3,12 +3,20 @@ export interface ItemInput {
   descripcion: string;
   cantidad: number;
   precioUnitarioBase: number;
+  // ── Tipo y fuente ──
+  tipoItem: "PRODUCTO" | "SERVICIO";
+  fuenteCompra: "LOCAL" | "AMAZON" | "EXTERIOR_OTRO";
+  precioOriginal?: number;
+  monedaOriginal?: string;
+  grupoId?: string;
+  grupoLabel?: string;
+  // ── Costos ──
   aplicaTax: boolean;
   taxUnitario: number; // Ingresado manualmente si aplica
   envioUnitario: number;
   promocionEnvioUnitario: number; // Restado del Envío
   importacionUnitario: number; // Cargos de importación adicionales
-  aplicaAmazon: boolean; // Automático si es true -> precio * 0.0225
+  aplicaAmazon: boolean; // Automático si fuenteCompra === "AMAZON"
 }
 
 export interface ItemCalculated extends ItemInput {
@@ -28,6 +36,7 @@ export interface DocumentTotals {
 }
 
 export const AMAZON_RATE = 0.0225;
+export const TAX_RATE_US = 0.07; // 7% US sales tax promedio
 
 // ── Margen de Ganancia ────────────────────────────────────────────────────────
 export type MargenTipo = 'base' | 'total';
@@ -63,16 +72,39 @@ export function aplicarMargenAItem(item: ItemInput, config: MargenConfig): ItemI
 }
 
 export function calcularItem(item: ItemInput): ItemCalculated {
+  // ── Servicio: sin costos adicionales ──
+  if (item.tipoItem === "SERVICIO") {
+    const costoUnitarioFinal = item.precioUnitarioBase;
+    return {
+      ...item,
+      amazonUnitarioCalculado: 0,
+      costoUnitarioFinal,
+      subtotalLinea: costoUnitarioFinal * item.cantidad,
+    };
+  }
+
+  // ── Producto LOCAL: solo precio + envío local ──
+  if (item.fuenteCompra === "LOCAL") {
+    const envioBase = item.envioUnitario || 0;
+    const costoUnitarioFinal = item.precioUnitarioBase + envioBase;
+    return {
+      ...item,
+      amazonUnitarioCalculado: 0,
+      costoUnitarioFinal,
+      subtotalLinea: costoUnitarioFinal * item.cantidad,
+    };
+  }
+
+  // ── Producto importado (AMAZON o EXTERIOR_OTRO) ──
   const tax = item.aplicaTax ? item.taxUnitario : 0;
   const envioBase = item.envioUnitario || 0;
   const promoEnvio = item.promocionEnvioUnitario || 0;
   const envioNeto = envioBase - promoEnvio;
   const importacion = item.importacionUnitario || 0;
-  
-  // Amazon Garantia se cobra sobre el Precio Base sumado a Cargos de importación, e impuestos.
-  // IMPORTANTE: Amazon calcula la garantía incluyendo el envío BRUTO (envioBase), ANTES de aplicar cualquier promoción (Free Shipping).
-  const baseGarantia = item.precioUnitarioBase + tax + envioBase + importacion;
-  const amazon = item.aplicaAmazon ? baseGarantia * AMAZON_RATE : 0;
+
+  // Amazon fee SOLO para fuente AMAZON, sobre precio + tax + envío bruto (sin importación)
+  const baseGarantia = item.precioUnitarioBase + tax + envioBase;
+  const amazon = item.fuenteCompra === "AMAZON" ? baseGarantia * AMAZON_RATE : 0;
 
   const costoUnitarioFinal = item.precioUnitarioBase + tax + amazon + envioNeto + importacion;
   const subtotalLinea = costoUnitarioFinal * item.cantidad;
@@ -97,6 +129,7 @@ export function calcularTotalesDocumento(
 
   for (const item of items) {
     subtotal += item.precioUnitarioBase * item.cantidad;
+    // Servicios no aportan a estos costos (siempre 0 en el calculated)
     totalTax += (item.aplicaTax ? item.taxUnitario : 0) * item.cantidad;
     totalEnvio += (item.envioUnitario || 0) * item.cantidad;
     totalPromocionEnvio += (item.promocionEnvioUnitario || 0) * item.cantidad;

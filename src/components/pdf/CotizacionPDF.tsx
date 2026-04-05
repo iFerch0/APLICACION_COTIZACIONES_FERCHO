@@ -275,7 +275,7 @@ interface PdfProps {
   numero?: string;
 }
 
-const fmt = (val: number) => `$${val.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+const fmt = (val: number | { toString(): string }) => `$${Number(val).toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
 
 export const CotizacionPDF = ({
   formato,
@@ -373,12 +373,12 @@ export const CotizacionPDF = ({
                   <Text style={[styles.tableRowText, styles.colUnit]}>{fmt(item.precioUnitarioBase)}</Text>
                   <View style={styles.colTaxesComp}>
                     {item.aplicaTax && <Text style={{ fontSize: 7, color: '#4A5568' }}>Tax: {fmt(item.taxUnitario)}</Text>}
-                    {(item.envioUnitario > 0 || item.promocionEnvioUnitario > 0) && (
-                      <Text style={{ fontSize: 7, color: '#4A5568' }}>Envio: {fmt(item.envioUnitario - item.promocionEnvioUnitario)}</Text>
+                    {(Number(item.envioUnitario) > 0 || Number(item.promocionEnvioUnitario) > 0) && (
+                      <Text style={{ fontSize: 7, color: '#4A5568' }}>Envio: {fmt(Number(item.envioUnitario) - Number(item.promocionEnvioUnitario))}</Text>
                     )}
-                    {item.importacionUnitario > 0 && <Text style={{ fontSize: 7, color: '#4A5568' }}>Imp: {fmt(item.importacionUnitario)}</Text>}
+                    {Number(item.importacionUnitario) > 0 && <Text style={{ fontSize: 7, color: '#4A5568' }}>Imp: {fmt(item.importacionUnitario)}</Text>}
                     {item.aplicaAmazon && <Text style={{ fontSize: 7, color: '#4A5568' }}>Garantía: +2.25%</Text>}
-                    {!item.aplicaTax && item.envioUnitario <= 0 && item.importacionUnitario <= 0 && !item.aplicaAmazon && (
+                    {!item.aplicaTax && Number(item.envioUnitario) <= 0 && Number(item.importacionUnitario) <= 0 && !item.aplicaAmazon && (
                       <Text style={{ fontSize: 7, color: '#A0AEC0' }}>N/A</Text>
                     )}
                   </View>
@@ -430,31 +430,31 @@ export const CotizacionPDF = ({
                   <Text style={styles.totalRowText}>Subtotal Ítems:</Text>
                   <Text style={styles.totalRowValue}>{fmt(totales.subtotal)}</Text>
                 </View>
-                {totales.totalTax > 0 && (
+                {Number(totales.totalTax) > 0 && (
                   <View style={styles.totalRow}>
                     <Text style={styles.totalRowText}>Total Tax:</Text>
                     <Text style={styles.totalRowValue}>{fmt(totales.totalTax)}</Text>
                   </View>
                 )}
-                {totales.totalEnvio > 0 && (
+                {Number(totales.totalEnvio) > 0 && (
                   <View style={styles.totalRow}>
                     <Text style={styles.totalRowText}>Costo Envío:</Text>
                     <Text style={styles.totalRowValue}>{fmt(totales.totalEnvio)}</Text>
                   </View>
                 )}
-                {totales.totalPromocionEnvio > 0 && (
+                {Number(totales.totalPromocionEnvio) > 0 && (
                   <View style={styles.totalRow}>
                     <Text style={styles.totalRowText}>Promo Envío Gratis:</Text>
                     <Text style={[styles.totalRowValue, { color: '#E53E3E' }]}>-{fmt(totales.totalPromocionEnvio)}</Text>
                   </View>
                 )}
-                {totales.totalImportacion > 0 && (
+                {Number(totales.totalImportacion) > 0 && (
                   <View style={styles.totalRow}>
                     <Text style={styles.totalRowText}>Total Importación:</Text>
                     <Text style={styles.totalRowValue}>{fmt(totales.totalImportacion)}</Text>
                   </View>
                 )}
-                {totales.totalAmazon > 0 && (
+                {Number(totales.totalAmazon) > 0 && (
                   <View style={styles.totalRow}>
                     <Text style={styles.totalRowText}>Garantía/Tasa C.:</Text>
                     <Text style={styles.totalRowValue}>{fmt(totales.totalAmazon)}</Text>

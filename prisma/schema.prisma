@@ -1,6 +1,6 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -44,27 +44,25 @@ model CommercialDocument {
   sellerId       String
   customerId     String
   observaciones  String?
-  subtotal       Float
-  totalTax       Float
-  totalEnvio          Float
-  totalPromocionEnvio Float                    @default(0)
-  totalAmazon         Float
-  totalImportacion    Float                    @default(0)
-  total4x1000         Float
-  totalFinal          Float
-  estado              String                   @default("BORRADOR")
+  subtotal       Decimal                  @db.Decimal(12, 2)
+  totalTax       Decimal                  @db.Decimal(12, 2)
+  totalEnvio          Decimal             @db.Decimal(12, 2)
+  totalPromocionEnvio Decimal             @db.Decimal(12, 2) @default(0)
+  totalAmazon         Decimal             @db.Decimal(12, 2)
+  totalImportacion    Decimal             @db.Decimal(12, 2) @default(0)
+  total4x1000         Decimal             @db.Decimal(12, 2)
+  totalFinal          Decimal             @db.Decimal(12, 2)
+  estado              String              @default("BORRADOR")
   currency       String                   @default("COP")
-  // Trazabilidad: cotización origen de la que se generó esta factura
   cotizacionOrigenId  String?
-  margenPorcentaje    Float                    @default(0)
-  margenTipo          String                   @default("base")
-  margenRedondeo      Int                      @default(0)
+  margenPorcentaje    Decimal             @db.Decimal(5, 2) @default(0)
+  margenTipo          String              @default("base")
+  margenRedondeo      Int                 @default(0)
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
   seller         SellerProfile            @relation(fields: [sellerId], references: [id])
   customer       Customer                 @relation(fields: [customerId], references: [id])
   items          CommercialDocumentItem[]
-  // Auto-relación: factura → cotización origen
   cotizacionOrigen     CommercialDocument?  @relation("CotizacionAFactura", fields: [cotizacionOrigenId], references: [id])
   facturasGeneradas    CommercialDocument[] @relation("CotizacionAFactura")
 }
@@ -75,19 +73,30 @@ model CommercialDocumentItem {
   orden              Int
   descripcion        String
   cantidad           Int
-  precioUnitarioBase Float
+  precioUnitarioBase Decimal            @db.Decimal(12, 2)
+
+  // ── Tipo y fuente de compra (Ítem Inteligente) ──
+  tipoItem           String             @default("PRODUCTO")   // "PRODUCTO" | "SERVICIO"
+  fuenteCompra       String             @default("LOCAL")      // "LOCAL" | "AMAZON" | "EXTERIOR_OTRO"
+  precioOriginal     Decimal?           @db.Decimal(12, 4)     // Precio en moneda original (USD)
+  monedaOriginal     String?            @default("COP")        // Moneda del precio original
+
+  // ── Agrupación para PCs ensambladas ──
+  grupoId            String?            // Para agrupar partes de una misma PC
+  grupoLabel         String?            // Nombre del grupo (ej: "PC Gaming", "PC Oficina")
+
+  // ── Costos ──
   aplicaTax          Boolean            @default(false)
-  taxUnitario        Float              @default(0)
-  envioUnitario      Float              @default(0)
-  promocionEnvioUnitario Float          @default(0)
-  importacionUnitario Float             @default(0)
+  taxUnitario        Decimal            @db.Decimal(12, 2) @default(0)
+  envioUnitario      Decimal            @db.Decimal(12, 2) @default(0)
+  promocionEnvioUnitario Decimal       @db.Decimal(12, 2) @default(0)
+  importacionUnitario Decimal           @db.Decimal(12, 2) @default(0)
   aplicaAmazon       Boolean            @default(false)
-  amazonUnitario     Float              @default(0)
-  costoUnitarioFinal Float
-  subtotalLinea      Float
+  amazonUnitario     Decimal            @db.Decimal(12, 2) @default(0)
+  costoUnitarioFinal Decimal            @db.Decimal(12, 2)
+  subtotalLinea      Decimal            @db.Decimal(12, 2)
   aplica4x1000       Boolean            @default(false)
-  valor4x1000Linea   Float              @default(0)
-  totalLinea         Float
+  valor4x1000Linea   Decimal            @db.Decimal(12, 2) @default(0)
   document           CommercialDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
@@ -97,4 +106,12 @@ model AppSetting {
   valor       String
   descripcion String?
   updatedAt   DateTime @updatedAt
+}
+
+model DocumentSequence {
+  id        String   @id @default(cuid())
+  tipo      String   @unique // "COTIZACION" o "FACTURA"
+  anio      Int
+  secuencia Int      @default(0)
+  updatedAt DateTime @updatedAt
 }

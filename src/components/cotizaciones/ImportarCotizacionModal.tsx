@@ -17,9 +17,7 @@ import {
   ImportedCotizacionData,
   CotizacionParaImportar,
 } from "@/app/actions/documents";
-
-const fmtDec = (n: number) =>
-  n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+import { fmtMoney } from "@/lib/format";
 
 interface Props {
   onImport: (data: ImportedCotizacionData) => void;
@@ -72,7 +70,26 @@ export default function ImportarCotizacionModal({ onImport, hasFormData }: Props
     setPendingId(null);
     const data = await getDocumentForConversion(id);
     if (data) {
-      onImport(data);
+      // Asegurar que los items importados tengan los nuevos campos con defaults
+      const enrichedData: ImportedCotizacionData = {
+        ...data,
+        items: data.items.map((item: import("@/lib/calculator").ItemInput) => ({
+          ...item,
+          tipoItem: item.tipoItem ?? "PRODUCTO",
+          fuenteCompra: item.fuenteCompra ?? "LOCAL",
+          precioOriginal: item.precioOriginal ?? undefined,
+          monedaOriginal: item.monedaOriginal ?? "COP",
+          grupoId: item.grupoId ?? undefined,
+          grupoLabel: item.grupoLabel ?? undefined,
+          aplicaTax: item.aplicaTax ?? false,
+          taxUnitario: item.taxUnitario ?? 0,
+          envioUnitario: item.envioUnitario ?? 0,
+          promocionEnvioUnitario: item.promocionEnvioUnitario ?? 0,
+          importacionUnitario: item.importacionUnitario ?? 0,
+          aplicaAmazon: item.aplicaAmazon ?? false,
+        })),
+      };
+      onImport(enrichedData);
       setOpen(false);
       setSearch("");
       setResults([]);
@@ -209,7 +226,7 @@ export default function ImportarCotizacionModal({ onImport, hasFormData }: Props
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-xs font-bold text-[var(--text-0)]">
-                        ${fmtDec(cot.totalFinal)}
+                        ${fmtMoney(cot.totalFinal)}
                       </div>
                       <div className="text-[10px] text-[var(--text-2)]">
                         {format(new Date(cot.fecha), "dd MMM yy", { locale: es })}

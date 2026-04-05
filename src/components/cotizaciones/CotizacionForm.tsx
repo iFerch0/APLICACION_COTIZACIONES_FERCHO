@@ -1,54 +1,40 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
-import {
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  FileText,
-  User,
-  TrendingUp,
-  Eye,
-  CheckCircle,
-  AlertCircle,
-  Download,
-  RotateCcw,
-  Percent,
-  Lock,
-} from "lucide-react";
+import { Plus, FileText, Eye, CheckCircle, RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
-  ItemInput,
   calcularItem,
   calcularTotalesDocumento,
   aplicarMargenAItem,
-  MargenConfig,
-  MargenTipo,
-  MargenRedondeo,
 } from "@/lib/calculator";
+import { fmtMoneyDec } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
-import { createCustomer, searchCustomers } from "@/app/actions/customers";
+import { createCustomer } from "@/app/actions/customers";
 import { saveDocument, updateDocument, ImportedCotizacionData, EditDocumentData } from "@/app/actions/documents";
-import ImportarCotizacionModal from "@/components/cotizaciones/ImportarCotizacionModal";
+import ImportarCotizacionModal from "./ImportarCotizacionModal";
+import ItemRow from "./ItemRow";
+import MargenPanel from "./MargenPanel";
+import DocumentTotals from "./DocumentTotals";
+import CustomerSelector from "./CustomerSelector";
+import type { ItemForm, TipoItem, FuenteCompra, ClienteForm, SavedDoc, MargenTipo, MargenRedondeo } from "./types";
+import { makeItem, getItemDefaults, toItemInput } from "./types";
 
-const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer"), {
-  ssr: false,
-});
-
+const ClientPDFViewer = dynamic(() => import("@/components/pdf/ClientPDFViewer"), { ssr: false });
 const PDFDownloadButton = dynamic(
   () => import("@/components/pdf/ClientPDFViewer").then((m) => ({ default: m.PDFDownloadButton })),
   { ssr: false }
 );
 
+// ── Props ─────────────────────────────────────────────────────────────────────
 export interface DocumentFormProps {
   tipoDocumento?: "COTIZACION" | "FACTURA";
   seller?: import("@/app/actions/seller").SellerData | null;
@@ -56,95 +42,7 @@ export interface DocumentFormProps {
   editDocument?: EditDocumentData | null;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-const fmt = (n: number) =>
-  n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDec = (n: number) =>
-  n.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const makeItem = (): ItemInput => ({
-  id: crypto.randomUUID(),
-  descripcion: "",
-  cantidad: 1,
-  precioUnitarioBase: 0,
-  aplicaTax: false,
-  taxUnitario: 0,
-  envioUnitario: 0,
-  promocionEnvioUnitario: 0,
-  importacionUnitario: 0,
-  aplicaAmazon: false,
-});
-
-// ── Shared input class strings ─────────────────────────────────────────────
-const inputBase =
-  "w-full bg-[var(--surface-2)] border border-[var(--border-0)] rounded-xl text-sm text-[var(--text-0)] placeholder-[var(--text-2)] focus:border-amber-400/50 focus:ring-1 focus:ring-amber-400/20 outline-none transition-all";
-
-const chargeInput =
-  "w-full bg-[var(--surface-1)] border border-[var(--border-0)] rounded-lg py-1.5 pl-5 pr-2 text-xs text-[var(--text-0)] placeholder-[var(--text-2)] focus:border-amber-400/50 outline-none transition-all";
-
-const chargeInputTeal =
-  "w-full bg-[var(--teal-surface)] border border-[var(--teal-border)] rounded-lg py-1.5 pl-5 pr-2 text-xs text-[var(--teal-text)] focus:border-amber-400/50 outline-none transition-all";
-
-// ── Sub-components ─────────────────────────────────────────────────────────
-
-function SectionHeader({
-  icon: Icon,
-  title,
-  subtitle,
-  accent = "amber",
-}: {
-  icon: React.ElementType;
-  title: string;
-  subtitle?: string;
-  accent?: "amber" | "teal";
-}) {
-  return (
-    <div className="flex items-center gap-3 mb-5">
-      <div
-        className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-          accent === "amber"
-            ? "bg-amber-400/10 text-amber-500"
-            : "bg-teal-400/10 text-teal-500"
-        }`}
-      >
-        <Icon className="w-4 h-4" />
-      </div>
-      <div>
-        <h3 className="text-[var(--text-0)] font-semibold text-sm">{title}</h3>
-        {subtitle && <p className="text-[var(--text-2)] text-xs mt-0.5">{subtitle}</p>}
-      </div>
-    </div>
-  );
-}
-
-function LineItem({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent?: "amber" | "teal" | "danger";
-}) {
-  const valueClass =
-    accent === "amber"
-      ? "text-amber-500"
-      : accent === "teal"
-      ? "text-teal-500"
-      : accent === "danger"
-      ? "text-red-500"
-      : "text-[var(--text-0)]";
-
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-[var(--text-1)]">{label}</span>
-      <span className={`text-sm font-semibold ${valueClass}`}>{value}</span>
-    </div>
-  );
-}
-
-// ── Main Component ─────────────────────────────────────────────────────────
-
+// ── Main Orchestrator ─────────────────────────────────────────────────────────
 export default function CotizacionForm({
   tipoDocumento = "COTIZACION",
   seller,
@@ -154,29 +52,35 @@ export default function CotizacionForm({
   const router = useRouter();
   const initSource = editDocument ?? sourceDocument;
   const isEditMode = !!editDocument;
+  const isLabel = tipoDocumento === "COTIZACION" ? "Cotización" : "Factura";
 
-  const [clienteInfo, setClienteInfo] = useState({
+  // ── State ────────────────────────────────────────────────────────────────
+  const [clienteInfo, setClienteInfo] = useState<ClienteForm>({
     nombres: initSource?.clienteNombre ?? "",
     email: initSource?.clienteEmail ?? "",
     notas: initSource?.observaciones ?? "",
   });
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    initSource?.clienteId ?? null
+  );
+  const [items, setItems] = useState<ItemForm[]>(() => {
+    if (initSource?.items && initSource.items.length > 0) {
+      // Mapear ItemInput (calculator) → ItemForm (nuestro tipo)
+      return initSource.items.map((i) => ({
+        ...i,
+        tipoItem: (i as ItemForm).tipoItem ?? "PRODUCTO",
+        fuenteCompra: (i as ItemForm).fuenteCompra ?? "LOCAL",
+      }));
+    }
+    return [{ ...makeItem(), id: "1" }];
+  });
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [savedDoc, setSavedDoc] = useState<{
-    numero: string;
-    id: string;
-    totalFinal: number;
-    cotizacionOrigenId?: string;
-    cotizacionOrigenNumero?: string;
-  } | null>(null);
+  const [savedDoc, setSavedDoc] = useState<SavedDoc | null>(null);
   const [formatoPDF, setFormatoPDF] = useState<"completo" | "resumido" | "concatenado">("completo");
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [items, setItems] = useState<ItemInput[]>(
-    initSource?.items && initSource.items.length > 0
-      ? initSource.items
-      : [{ ...makeItem(), id: "1" }]
-  );
-  // Trazabilidad: referencia a la cotización origen
+
+  // Trazabilidad
   const [cotizacionOrigenId, setCotizacionOrigenId] = useState<string | null>(
     sourceDocument?.cotizacionOrigenId ?? null
   );
@@ -184,81 +88,44 @@ export default function CotizacionForm({
     sourceDocument?.cotizacionNumero ?? null
   );
 
-  // ── Margen de ganancia ─────────────────────────────────────────────────────
-  type MargenPreset = 0 | 10 | 15 | 'manual';
-  const [margenPreset, setMargenPreset] = useState<MargenPreset>(0);
-  const [margenManual, setMargenManual] = useState<number>(20);
-  const [margenTipo, setMargenTipo] = useState<MargenTipo>(
-    editDocument?.margenTipo ?? 'base'
-  );
+  // Margen
+  const [margenPreset, setMargenPreset] = useState<number | "manual">(0);
+  const [margenManual, setMargenManual] = useState(20);
+  const [margenTipo, setMargenTipo] = useState<MargenTipo>(editDocument?.margenTipo ?? "base");
   const [margenRedondeo, setMargenRedondeo] = useState<MargenRedondeo>(
     editDocument?.margenRedondeo ?? 0
   );
-  const margenPorcentaje = margenPreset === 'manual' ? margenManual : margenPreset;
+  const margenPorcentaje = margenPreset === "manual" ? margenManual : margenPreset;
 
-  // Autocomplete
-  const [suggestions, setSuggestions] = useState<{ id: string; nombres: string; email: string | null }[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    initSource?.clienteId ?? null
+  // ── Calculaciones ────────────────────────────────────────────────────────
+  const calculatedItems = useMemo(
+    () => items.map((i) => calcularItem(toItemInput(i))),
+    [items]
   );
-  const autocompleteRef = useRef<HTMLDivElement>(null);
+  const totalesCosto = useMemo(
+    () => calcularTotalesDocumento(calculatedItems),
+    [calculatedItems]
+  );
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (selectedCustomerId) return;
-    const t = setTimeout(async () => {
-      if (clienteInfo.nombres.length >= 2) {
-        const results = await searchCustomers(clienteInfo.nombres);
-        setSuggestions(results);
-        setShowSuggestions(results.length > 0);
-      } else {
-        setSuggestions([]);
-        setShowSuggestions(false);
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [clienteInfo.nombres, selectedCustomerId]);
-
-  const selectSuggestion = (c: { id: string; nombres: string; email: string | null }) => {
-    setClienteInfo((prev) => ({ ...prev, nombres: c.nombres, email: c.email ?? "" }));
-    setSelectedCustomerId(c.id);
-    setShowSuggestions(false);
-  };
-
-  // Cost items (no margin — what the seller pays)
-  const calculatedItems = useMemo(() => items.map(calcularItem), [items]);
-  const totalesCosto = useMemo(() => calcularTotalesDocumento(calculatedItems), [calculatedItems]);
-
-  // Margin config
-  const margenConfig = useMemo<MargenConfig>(
+  const margenConfig = useMemo(
     () => ({ porcentaje: margenPorcentaje, tipo: margenTipo, redondeo: margenRedondeo }),
     [margenPorcentaje, margenTipo, margenRedondeo]
   );
 
-  // Client items (with margin — what the client pays)
   const itemsConMargen = useMemo(
-    () => margenPorcentaje > 0 ? items.map((i) => aplicarMargenAItem(i, margenConfig)) : items,
+    () => (margenPorcentaje > 0 ? items.map((i) => aplicarMargenAItem(toItemInput(i), margenConfig)) : items.map(toItemInput)),
     [items, margenConfig, margenPorcentaje]
   );
-  const calculatedItemsConMargen = useMemo(() => itemsConMargen.map(calcularItem), [itemsConMargen]);
-  const totales = useMemo(() => calcularTotalesDocumento(calculatedItemsConMargen), [calculatedItemsConMargen]);
+  const calculatedItemsConMargen = useMemo(
+    () => itemsConMargen.map(calcularItem),
+    [itemsConMargen]
+  );
+  const totales = useMemo(
+    () => calcularTotalesDocumento(calculatedItemsConMargen),
+    [calculatedItemsConMargen]
+  );
 
-  // Profitability
-  const ganancia = totales.totalFinal - totalesCosto.totalFinal;
-  const margenReal = totalesCosto.totalFinal > 0 ? (ganancia / totalesCosto.totalFinal) * 100 : 0;
-
-  const isLabel = tipoDocumento === "COTIZACION" ? "Cotización" : "Factura";
-
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const agregarItem = () => {
     const item = makeItem();
     setItems((prev) => [...prev, item]);
@@ -274,6 +141,21 @@ export default function CotizacionForm({
     });
   };
 
+  const updateItem = <K extends keyof ItemForm>(id: string, field: K, value: ItemForm[K]) => {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  };
+
+  const handleTipoChange = (id: string, tipoItem: TipoItem, fuenteCompra?: FuenteCompra) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const fuente = fuenteCompra ?? item.fuenteCompra ?? "LOCAL";
+        const defaults = getItemDefaults(tipoItem, fuente);
+        return { ...item, tipoItem, fuenteCompra: fuente, ...defaults };
+      })
+    );
+  };
+
   const toggleExpanded = (id: string) => {
     setExpandedItems((prev) => {
       const s = new Set(prev);
@@ -282,32 +164,25 @@ export default function CotizacionForm({
     });
   };
 
-  const updateItem = <K extends keyof ItemInput>(id: string, field: K, value: ItemInput[K]) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
-    );
-  };
-
+  // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     setFormError(null);
     if (!clienteInfo.nombres.trim()) {
       setFormError("El nombre del cliente es obligatorio.");
+      toast.error("El nombre del cliente es obligatorio.");
       return;
     }
     const invalidItems = calculatedItems.filter((i) => !i.descripcion.trim() || i.precioUnitarioBase <= 0);
     if (invalidItems.length > 0) {
       setFormError("Todos los ítems deben tener descripción y precio mayor a $0.");
+      toast.error("Todos los ítems deben tener descripción y precio mayor a $0.");
       return;
     }
     setIsSaving(true);
     try {
       const clienteDb = selectedCustomerId
         ? { id: selectedCustomerId }
-        : await createCustomer({
-            nombres: clienteInfo.nombres,
-            email: clienteInfo.email,
-            notas: clienteInfo.notas,
-          });
+        : await createCustomer({ nombres: clienteInfo.nombres, email: clienteInfo.email, notas: clienteInfo.notas });
 
       if (isEditMode && editDocument) {
         const result = await updateDocument(editDocument.documentId, {
@@ -320,9 +195,11 @@ export default function CotizacionForm({
           margenRedondeo,
         });
         if (result.success) {
+          toast.success(`${isLabel} actualizada exitosamente`);
           router.push(`/documentos/${editDocument.documentId}`);
         } else {
           setFormError(result.error ?? "Error al actualizar el documento.");
+          toast.error(result.error ?? "Error al actualizar el documento.");
         }
       } else {
         const doc = await saveDocument({
@@ -337,6 +214,7 @@ export default function CotizacionForm({
           margenRedondeo,
         });
         if (doc.success) {
+          toast.success(`${isLabel} guardada exitosamente`);
           setSavedDoc({
             numero: doc.document.numero,
             id: doc.document.id,
@@ -353,11 +231,18 @@ export default function CotizacionForm({
     }
   };
 
-  // Importar datos desde una cotización (usado por el modal)
   const handleImport = (data: ImportedCotizacionData) => {
     setClienteInfo({ nombres: data.clienteNombre, email: data.clienteEmail, notas: data.observaciones });
     setSelectedCustomerId(data.clienteId);
-    setItems(data.items.length > 0 ? data.items : [{ ...makeItem(), id: "1" }]);
+    setItems(
+      data.items.length > 0
+        ? data.items.map((i) => ({
+            ...i,
+            tipoItem: (i as ItemForm).tipoItem ?? "PRODUCTO",
+            fuenteCompra: (i as ItemForm).fuenteCompra ?? "LOCAL",
+          }))
+        : [{ ...makeItem(), id: "1" }]
+    );
     setCotizacionOrigenId(data.cotizacionOrigenId);
     setCotizacionOrigenNumero(data.cotizacionNumero);
     setExpandedItems(new Set());
@@ -373,13 +258,11 @@ export default function CotizacionForm({
     setFormError(null);
     setFormatoPDF("completo");
     setSelectedCustomerId(null);
-    setSuggestions([]);
-    setShowSuggestions(false);
     setCotizacionOrigenId(null);
     setCotizacionOrigenNumero(null);
     setMargenPreset(0);
     setMargenManual(20);
-    setMargenTipo('base');
+    setMargenTipo("base");
     setMargenRedondeo(0);
   };
 
@@ -387,12 +270,43 @@ export default function CotizacionForm({
     clienteInfo.nombres.trim() !== "" ||
     items.some((i) => i.descripcion.trim() !== "" || i.precioUnitarioBase > 0);
 
+  // ── PDF Viewer Content (shared between preview and saved) ──────────────
+  const pdfViewerContent = () => (
+    <ClientPDFViewer
+      formato={formatoPDF}
+      numero={savedDoc?.numero}
+      cliente={clienteInfo}
+      items={calculatedItemsConMargen}
+      totales={totales}
+      tipoDocumento={tipoDocumento}
+      seller={seller}
+    />
+  );
+
+  const pdfTemplateTabs = (
+    <div className="flex items-center gap-1 px-6 py-3 border-b border-[var(--border-0)] bg-[var(--surface-2)]/50">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-2)] mr-2">Plantilla:</span>
+      {(["completo", "resumido", "concatenado"] as const).map((f) => (
+        <button
+          key={f}
+          onClick={() => setFormatoPDF(f)}
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+            formatoPDF === f
+              ? "bg-amber-400 text-[oklch(0.090_0.025_255)] shadow-sm"
+              : "text-[var(--text-1)] hover:text-[var(--text-0)] hover:bg-[var(--surface-2)]"
+          }`}
+        >
+          {f}
+        </button>
+      ))}
+    </div>
+  );
+
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col xl:flex-row gap-6 w-full">
-
       {/* ── Main forms ─────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 space-y-5">
-
         {/* Banner: datos pre-cargados desde cotización */}
         {cotizacionOrigenId && cotizacionOrigenNumero && !savedDoc && (
           <div className="flex items-start gap-3 p-4 bg-teal-400/8 border border-teal-400/20 rounded-2xl">
@@ -425,7 +339,6 @@ export default function CotizacionForm({
 
         {/* Items Section */}
         <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl overflow-hidden">
-
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-0)]">
             <div className="flex items-center gap-3">
@@ -435,7 +348,7 @@ export default function CotizacionForm({
               <div>
                 <h3 className="text-[var(--text-0)] font-semibold text-sm">Detalle de Ítems</h3>
                 <p className="text-[var(--text-2)] text-xs">
-                  {items.length} {items.length === 1 ? "producto" : "productos"}
+                  {items.length} {items.length === 1 ? "ítem" : "ítems"}
                 </p>
               </div>
             </div>
@@ -453,419 +366,22 @@ export default function CotizacionForm({
             </div>
           </div>
 
-          {/* ── Desktop table (md+) ──────────────────────────────────── */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left min-w-[740px]">
-              <thead>
-                <tr className="border-b border-[var(--border-0)]">
-                  {[
-                    { label: "Descripción", cls: "w-[32%] px-5" },
-                    { label: "Cant.", cls: "w-14 text-center px-3" },
-                    { label: "Precio Base", cls: "w-28 px-3" },
-                    { label: "Cargos Adic.", cls: "w-36 px-3" },
-                    { label: "Amazon", cls: "w-20 text-center px-3" },
-                    { label: "Subtotal", cls: "w-28 text-right px-3" },
-                  ].map(({ label, cls }) => (
-                    <th
-                      key={label}
-                      className={`py-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-2)] ${cls}`}
-                    >
-                      {label}
-                    </th>
-                  ))}
-                  <th className="px-2 py-3 w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {calculatedItems.map((item, idx) => (
-                  <tr
-                    key={item.id}
-                    className="border-b border-[var(--border-0)]/50 last:border-0 hover:bg-[var(--surface-2)]/50 transition-colors group"
-                  >
-                    {/* Description */}
-                    <td className="px-5 py-3.5 align-top">
-                      <div className="flex items-start gap-2">
-                        <span className="mt-2.5 text-[10px] font-bold text-[var(--text-2)] w-4 shrink-0 select-none">
-                          {idx + 1}
-                        </span>
-                        <textarea
-                          className={`${inputBase} py-2.5 px-3 resize-none min-h-[76px]`}
-                          placeholder="Nombre del producto o servicio..."
-                          value={item.descripcion}
-                          onChange={(e) => updateItem(item.id, "descripcion", e.target.value)}
-                        />
-                      </div>
-                    </td>
-
-                    {/* Cantidad */}
-                    <td className="px-3 py-3.5 align-top">
-                      <input
-                        type="number"
-                        min="1"
-                        className={`${inputBase} py-2.5 px-2 text-center`}
-                        value={item.cantidad || ""}
-                        onChange={(e) => updateItem(item.id, "cantidad", Number(e.target.value))}
-                      />
-                    </td>
-
-                    {/* Precio Base */}
-                    <td className="px-3 py-3.5 align-top">
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-xs pointer-events-none">
-                          $
-                        </span>
-                        <input
-                          type="number"
-                          className={`${inputBase} py-2.5 pl-6 pr-2`}
-                          placeholder="0"
-                          value={item.precioUnitarioBase || ""}
-                          onChange={(e) =>
-                            updateItem(item.id, "precioUnitarioBase", Number(e.target.value))
-                          }
-                        />
-                      </div>
-                    </td>
-
-                    {/* Cargos adicionales */}
-                    <td className="px-3 py-3.5 align-top">
-                      <div className="space-y-1.5">
-
-                        {/* Tax */}
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            className="w-3.5 h-3.5 rounded accent-amber-500 shrink-0"
-                            checked={item.aplicaTax}
-                            onChange={(e) => updateItem(item.id, "aplicaTax", e.target.checked)}
-                          />
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-1)] w-7 shrink-0">
-                            Tax
-                          </span>
-                          <div className="relative flex-1">
-                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
-                              $
-                            </span>
-                            <input
-                              type="number"
-                              className={`${
-                                item.aplicaTax
-                                  ? "w-full bg-amber-400/5 border border-amber-400/30 rounded-lg py-1.5 pl-5 pr-2 text-xs text-amber-500 focus:border-amber-400/60 outline-none transition-all"
-                                  : `${chargeInput} opacity-30 pointer-events-none`
-                              }`}
-                              placeholder="0"
-                              value={item.taxUnitario || ""}
-                              onChange={(e) =>
-                                updateItem(item.id, "taxUnitario", Number(e.target.value))
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        {/* Envío, Promo, Importación */}
-                        {(
-                          [
-                            {
-                              label: "Env",
-                              key: "envioUnitario" as keyof ItemInput,
-                              cls: chargeInput,
-                              color: "text-[var(--text-1)]",
-                            },
-                            {
-                              label: "Pro",
-                              key: "promocionEnvioUnitario" as keyof ItemInput,
-                              cls: chargeInputTeal,
-                              color: "text-teal-500",
-                            },
-                            {
-                              label: "Imp",
-                              key: "importacionUnitario" as keyof ItemInput,
-                              cls: chargeInput,
-                              color: "text-[var(--text-1)]",
-                            },
-                          ] as const
-                        ).map(({ label, key, cls, color }) => (
-                          <div key={key} className="flex items-center gap-1.5">
-                            <div className="w-3.5 h-3.5 shrink-0" />
-                            <span className={`text-[10px] font-bold uppercase tracking-wide w-7 shrink-0 ${color}`}>
-                              {label}
-                            </span>
-                            <div className="relative flex-1">
-                              <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
-                                $
-                              </span>
-                              <input
-                                type="number"
-                                className={cls}
-                                placeholder="0"
-                                value={(item[key] as number) || ""}
-                                onChange={(e) =>
-                                  updateItem(
-                                    item.id,
-                                    key,
-                                    Number(e.target.value) as ItemInput[typeof key]
-                                  )
-                                }
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-
-                    {/* Amazon */}
-                    <td className="px-3 py-3.5 align-top text-center">
-                      <label className="flex flex-col items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded accent-amber-500"
-                          checked={item.aplicaAmazon}
-                          onChange={(e) => updateItem(item.id, "aplicaAmazon", e.target.checked)}
-                        />
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-2)]">
-                          Amz
-                        </span>
-                        {item.aplicaAmazon ? (
-                          <span className="text-[10px] font-bold text-amber-500 bg-amber-400/10 px-1.5 py-0.5 rounded-lg">
-                            +${fmt(item.amazonUnitarioCalculado)}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-[var(--border-1)] font-medium">—</span>
-                        )}
-                      </label>
-                    </td>
-
-                    {/* Subtotal */}
-                    <td className="px-3 py-3.5 align-top text-right">
-                      <div className="pt-1">
-                        <div className="text-[var(--text-0)] font-bold text-sm">
-                          ${fmtDec(item.subtotalLinea)}
-                        </div>
-                        <div className="text-[var(--text-2)] text-[10px] mt-1">
-                          u: ${fmt(item.costoUnitarioFinal)}
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Delete */}
-                    <td className="px-2 py-3.5 align-top">
-                      <button
-                        onClick={() => eliminarItem(item.id)}
-                        className="mt-1.5 p-1.5 text-[var(--border-1)] hover:text-red-500 hover:bg-red-400/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* ── Mobile cards (< md) ──────────────────────────────────── */}
-          <div className="md:hidden divide-y divide-[var(--border-0)]/50">
-            {calculatedItems.map((item, idx) => {
-              const expanded = expandedItems.has(item.id);
-              return (
-                <div key={item.id} className="p-4 space-y-3">
-                  <div className="flex items-start gap-2">
-                    <span className="mt-3 text-[10px] font-bold text-[var(--text-2)] w-5 shrink-0">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1 space-y-3">
-
-                      {/* Description + delete */}
-                      <div className="flex gap-2">
-                        <textarea
-                          className={`flex-1 ${inputBase} py-2.5 px-3 resize-none min-h-[60px]`}
-                          placeholder="Nombre del producto..."
-                          value={item.descripcion}
-                          onChange={(e) => updateItem(item.id, "descripcion", e.target.value)}
-                        />
-                        <button
-                          onClick={() => eliminarItem(item.id)}
-                          className="p-2 text-[var(--text-2)] hover:text-red-500 hover:bg-red-400/10 rounded-xl transition-all self-start"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Cantidad + Precio */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
-                            Cantidad
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            className={`${inputBase} py-2.5 px-3 text-center`}
-                            value={item.cantidad || ""}
-                            onChange={(e) =>
-                              updateItem(item.id, "cantidad", Number(e.target.value))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
-                            Precio Base
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-xs pointer-events-none">
-                              $
-                            </span>
-                            <input
-                              type="number"
-                              className={`${inputBase} py-2.5 pl-6 pr-3`}
-                              placeholder="0"
-                              value={item.precioUnitarioBase || ""}
-                              onChange={(e) =>
-                                updateItem(item.id, "precioUnitarioBase", Number(e.target.value))
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Toggle cargos */}
-                      <button
-                        onClick={() => toggleExpanded(item.id)}
-                        className="flex items-center gap-1.5 text-xs text-amber-500/70 hover:text-amber-500 font-semibold transition-colors"
-                      >
-                        {expanded ? (
-                          <ChevronUp className="w-3.5 h-3.5" />
-                        ) : (
-                          <ChevronDown className="w-3.5 h-3.5" />
-                        )}
-                        {expanded ? "Ocultar" : "Ver"} cargos adicionales
-                      </button>
-
-                      {/* Cargos expandidos */}
-                      {expanded && (
-                        <div className="bg-[var(--surface-2)] border border-[var(--border-0)] rounded-xl p-3 space-y-2.5">
-
-                          {/* Tax */}
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              className="w-3.5 h-3.5 rounded accent-amber-500 shrink-0"
-                              checked={item.aplicaTax}
-                              onChange={(e) =>
-                                updateItem(item.id, "aplicaTax", e.target.checked)
-                              }
-                            />
-                            <span className="text-xs font-bold text-amber-500/80 w-20 shrink-0">
-                              Tax extra
-                            </span>
-                            <div className="relative flex-1">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
-                                $
-                              </span>
-                              <input
-                                type="number"
-                                className={`w-full rounded-lg py-1.5 pl-5 pr-2 text-xs outline-none transition-all ${
-                                  item.aplicaTax
-                                    ? "bg-amber-400/5 border border-amber-400/30 text-amber-500 focus:border-amber-400/60"
-                                    : "bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-2)] opacity-40 pointer-events-none"
-                                }`}
-                                placeholder="0"
-                                value={item.taxUnitario || ""}
-                                onChange={(e) =>
-                                  updateItem(item.id, "taxUnitario", Number(e.target.value))
-                                }
-                              />
-                            </div>
-                          </div>
-
-                          {/* Envío, Promo, Importación */}
-                          {(
-                            [
-                              {
-                                label: "Envío",
-                                key: "envioUnitario" as keyof ItemInput,
-                                color: "text-[var(--text-1)]",
-                                isTeal: false,
-                              },
-                              {
-                                label: "Promo envío",
-                                key: "promocionEnvioUnitario" as keyof ItemInput,
-                                color: "text-teal-500",
-                                isTeal: true,
-                              },
-                              {
-                                label: "Importación",
-                                key: "importacionUnitario" as keyof ItemInput,
-                                color: "text-[var(--text-1)]",
-                                isTeal: false,
-                              },
-                            ] as const
-                          ).map(({ label, key, color, isTeal }) => (
-                            <div key={key} className="flex items-center gap-2">
-                              <div className="w-3.5 h-3.5 shrink-0" />
-                              <span className={`text-xs font-bold w-20 shrink-0 ${color}`}>
-                                {label}
-                              </span>
-                              <div className="relative flex-1">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-[10px] pointer-events-none">
-                                  $
-                                </span>
-                                <input
-                                  type="number"
-                                  className={`w-full rounded-lg py-1.5 pl-5 pr-2 text-xs outline-none transition-all ${
-                                    isTeal
-                                      ? "bg-[var(--teal-surface)] border border-[var(--teal-border)] text-[var(--teal-text)] focus:border-amber-400/50"
-                                      : "bg-[var(--surface-1)] border border-[var(--border-0)] text-[var(--text-0)] focus:border-amber-400/50"
-                                  }`}
-                                  placeholder="0"
-                                  value={(item[key] as number) || ""}
-                                  onChange={(e) =>
-                                    updateItem(
-                                      item.id,
-                                      key,
-                                      Number(e.target.value) as ItemInput[typeof key]
-                                    )
-                                  }
-                                />
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* Amazon */}
-                          <div className="flex items-center gap-2 pt-0.5 border-t border-[var(--border-0)]">
-                            <input
-                              type="checkbox"
-                              className="w-3.5 h-3.5 rounded accent-amber-500 shrink-0"
-                              checked={item.aplicaAmazon}
-                              onChange={(e) =>
-                                updateItem(item.id, "aplicaAmazon", e.target.checked)
-                              }
-                            />
-                            <span className="text-xs font-bold text-[var(--text-1)] flex-1">
-                              Garantía Tasa de Cambio (2.25%)
-                            </span>
-                            {item.aplicaAmazon && (
-                              <span className="text-xs font-bold text-amber-500">
-                                +${fmt(item.amazonUnitarioCalculado)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Subtotal row */}
-                      <div className="flex items-center justify-between pt-0.5">
-                        <span className="text-[10px] text-[var(--text-2)]">
-                          Precio unit: ${fmt(item.costoUnitarioFinal)}
-                        </span>
-                        <span className="text-sm font-bold text-[var(--text-0)]">
-                          ${fmtDec(item.subtotalLinea)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {/* Item rows */}
+          {calculatedItems.map((calculatedItem, idx) => {
+            const formItem = items[idx];
+            return (
+              <ItemRow
+                key={formItem.id}
+                item={formItem}
+                idx={idx}
+                expanded={expandedItems.has(formItem.id)}
+                onUpdate={updateItem}
+                onRemove={eliminarItem}
+                onToggleExpand={toggleExpanded}
+                onTipoChange={handleTipoChange}
+              />
+            );
+          })}
 
           {/* Footer add row */}
           <div className="px-5 py-3 border-t border-[var(--border-0)] flex items-center justify-between">
@@ -877,511 +393,186 @@ export default function CotizacionForm({
               Agregar otro ítem
             </button>
             <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
-              {items.length} {items.length === 1 ? "producto" : "productos"}
+              {items.length} {items.length === 1 ? "ítem" : "ítems"}
             </span>
           </div>
         </div>
 
         {/* Customer Section */}
-        <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl p-5">
-          <SectionHeader
-            icon={User}
-            title="Información del Cliente"
-            subtitle="Datos de contacto del destinatario del documento"
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 relative" ref={autocompleteRef}>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
-                Nombre completo <span className="text-amber-500">*</span>
-              </label>
-              <input
-                className={`${inputBase} py-3 px-4`}
-                placeholder="Ej: Juan Pérez"
-                type="text"
-                autoComplete="off"
-                value={clienteInfo.nombres}
-                onChange={(e) => {
-                  setClienteInfo({ ...clienteInfo, nombres: e.target.value });
-                  setSelectedCustomerId(null);
-                }}
-              />
-              {showSuggestions && (
-                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-[var(--surface-1)] border border-[var(--border-0)] rounded-xl shadow-xl overflow-hidden">
-                  <p className="px-3 pt-2.5 pb-1 text-[9px] font-bold uppercase tracking-widest text-[var(--text-2)]">
-                    Clientes existentes
-                  </p>
-                  {suggestions.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onMouseDown={() => selectSuggestion(c)}
-                      className="w-full flex flex-col items-start px-3 py-2.5 hover:bg-amber-400/8 transition-colors text-left"
-                    >
-                      <span className="text-sm font-semibold text-[var(--text-0)]">{c.nombres}</span>
-                      {c.email && <span className="text-xs text-[var(--text-2)]">{c.email}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {selectedCustomerId && (
-                <p className="text-[10px] text-amber-500 font-semibold">
-                  ✓ Cliente existente seleccionado
-                </p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
-                Email de contacto
-              </label>
-              <input
-                className={`${inputBase} py-3 px-4`}
-                placeholder="cliente@empresa.com"
-                type="email"
-                value={clienteInfo.email}
-                onChange={(e) => setClienteInfo({ ...clienteInfo, email: e.target.value })}
-              />
-            </div>
-            <div className="sm:col-span-2 space-y-1.5">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)]">
-                Notas y observaciones
-              </label>
-              <textarea
-                className={`${inputBase} py-3 px-4 resize-none`}
-                placeholder="Condiciones especiales, términos de pago, observaciones..."
-                rows={3}
-                value={clienteInfo.notas}
-                onChange={(e) => setClienteInfo({ ...clienteInfo, notas: e.target.value })}
-              />
-            </div>
-
-            {formError && (
-              <div className="sm:col-span-2 flex items-center gap-2.5 p-3 bg-red-500/8 border border-red-500/20 rounded-xl">
-                <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                <span className="text-xs text-red-500 font-medium">{formError}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
+        <CustomerSelector
+          clienteInfo={clienteInfo}
+          selectedCustomerId={selectedCustomerId}
+          formError={formError}
+          onClienteChange={setClienteInfo}
+          onCustomerIdChange={setSelectedCustomerId}
+        />
       </div>
 
       {/* ── Summary Panel ──────────────────────────────────────────────── */}
       <div className="xl:w-80 shrink-0">
         <div className="xl:sticky xl:top-24 space-y-4">
+          {/* Totales */}
+          <DocumentTotals
+            totales={totales}
+            isLabel={isLabel}
+            margen={margenPorcentaje > 0 ? margenConfig : undefined}
+            items={items}
+          />
 
-          <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl overflow-hidden">
-
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-[var(--border-0)] flex items-center gap-2.5">
-              <TrendingUp className="w-4 h-4 text-amber-500" />
-              <h3 className="text-[var(--text-0)] font-semibold text-sm">Resumen de {isLabel}</h3>
-            </div>
-
-            {/* Lines */}
-            <div className="p-5 space-y-2.5">
-              <LineItem label="Subtotal ítems" value={`$${fmtDec(totales.subtotal)}`} />
-              {totales.totalTax > 0 && (
-                <LineItem label="Tax (extras)" value={`+$${fmtDec(totales.totalTax)}`} accent="amber" />
-              )}
-              {totales.totalEnvio > 0 && (
-                <LineItem
-                  label="Descuento envío"
-                  value={`+$${fmtDec(totales.totalEnvio)}`}
-                />
-              )}
-              {totales.totalPromocionEnvio > 0 && (
-                <LineItem
-                  label="Promo envío gratis"
-                  value={`−$${fmtDec(totales.totalPromocionEnvio)}`}
-                  accent="teal"
-                />
-              )}
-              {totales.totalImportacion > 0 && (
-                <LineItem label="Importación" value={`+$${fmtDec(totales.totalImportacion)}`} />
-              )}
-              {totales.totalAmazon > 0 && (
-                <LineItem
-                  label="Garantía Tasa de Cambio"
-                  value={`+$${fmtDec(totales.totalAmazon)}`}
-                  accent="amber"
-                />
-              )}
-              {/* Total */}
-              <div className="border-t border-[var(--border-0)] pt-4 mt-2">
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-amber-500/70 mb-1">
-                      Total Final
-                    </div>
-                    <div className="text-3xl font-black text-[var(--text-0)] leading-none">
-                      ${fmtDec(totales.totalFinal)}
-                    </div>
-                    <div className="text-[10px] text-[var(--text-2)] mt-1 font-medium">
-                      COP — Pesos Colombianos
-                    </div>
+          {/* Action buttons / Success state */}
+          <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl px-5 pb-5">
+            {savedDoc ? (
+              /* ── Success state ─────────────────────────────────── */
+              <div className="space-y-3 fade-up">
+                <div className="flex flex-col items-center text-center py-5 px-3 bg-green-500/5 border border-green-500/15 rounded-2xl">
+                  <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center mb-3">
+                    <CheckCircle className="w-6 h-6 text-green-500" strokeWidth={2} />
                   </div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 mb-1.5">
+                    {isLabel} guardada
+                  </div>
+                  <div className="text-2xl font-black text-[var(--text-0)] tracking-tight mb-0.5">
+                    {savedDoc.numero}
+                  </div>
+                  <div className="text-sm text-[var(--text-2)]">
+                    Total: <span className="font-bold text-[var(--text-0)]">${fmtMoneyDec(savedDoc.totalFinal)}</span>
+                  </div>
+                  <div className="text-xs text-[var(--text-2)] mt-1">{clienteInfo.nombres}</div>
                 </div>
+
+                <PDFDownloadButton
+                  formato={formatoPDF}
+                  numero={savedDoc.numero}
+                  cliente={clienteInfo}
+                  items={calculatedItemsConMargen}
+                  totales={totales}
+                  tipoDocumento={tipoDocumento}
+                  seller={seller}
+                  fileName={`${savedDoc.numero}.pdf`}
+                  label="Descargar PDF"
+                  className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-[oklch(0.090_0.025_255)] font-bold py-3 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
+                />
+
+                <Dialog>
+                  <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3 rounded-xl transition-all text-sm">
+                    <Eye className="w-4 h-4" />
+                    Vista previa PDF
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)] p-0">
+                    <div className="px-6 pt-6 pb-4 border-b border-[var(--border-0)]">
+                      <DialogTitle className="text-[var(--text-0)] font-bold text-base">{savedDoc.numero}</DialogTitle>
+                      <p className="text-[var(--text-2)] text-xs mt-0.5">Vista previa del documento</p>
+                    </div>
+                    {pdfTemplateTabs}
+                    <div className="p-5">{pdfViewerContent()}</div>
+                  </DialogContent>
+                </Dialog>
+
+                <button
+                  onClick={handleReset}
+                  className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3 rounded-xl transition-all text-sm"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  {tipoDocumento === "COTIZACION" ? "Nueva Cotización" : "Nueva Factura"}
+                </button>
+
+                <Link
+                  href={`/documentos/${savedDoc.id}`}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-2 transition-colors border border-[var(--border-0)] rounded-xl"
+                >
+                  Ver {tipoDocumento === "COTIZACION" ? "cotización" : "factura"} guardada →
+                </Link>
+
+                {savedDoc.cotizacionOrigenId && savedDoc.cotizacionOrigenNumero && (
+                  <Link
+                    href={`/documentos/${savedDoc.cotizacionOrigenId}`}
+                    className="flex items-center justify-center gap-1.5 text-xs text-teal-500 hover:text-teal-400 font-medium py-1 transition-colors"
+                  >
+                    <FileText className="w-3 h-3" />
+                    Ver cotización origen {savedDoc.cotizacionOrigenNumero}
+                  </Link>
+                )}
+
+                <Link
+                  href="/"
+                  className="flex items-center justify-center gap-1.5 text-xs text-[var(--text-2)] hover:text-[var(--text-1)] font-medium py-1.5 transition-colors"
+                >
+                  ← Volver al inicio
+                </Link>
               </div>
-            </div>
-
-            {/* Action buttons / Success state */}
-            <div className="px-5 pb-5">
-              {savedDoc ? (
-                /* ── Success state ─────────────────────────────────── */
-                <div className="space-y-3 fade-up">
-                  {/* Checkmark + doc info */}
-                  <div className="flex flex-col items-center text-center py-5 px-3 bg-green-500/5 border border-green-500/15 rounded-2xl">
-                    <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center mb-3">
-                      <CheckCircle className="w-6 h-6 text-green-500" strokeWidth={2} />
-                    </div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-green-600 dark:text-green-400 mb-1.5">
-                      {isLabel} guardada
-                    </div>
-                    <div className="text-2xl font-black text-[var(--text-0)] tracking-tight mb-0.5">
-                      {savedDoc.numero}
-                    </div>
-                    <div className="text-sm text-[var(--text-2)]">
-                      Total:{" "}
-                      <span className="font-bold text-[var(--text-0)]">
-                        ${fmtDec(savedDoc.totalFinal)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-[var(--text-2)] mt-1">
-                      {clienteInfo.nombres}
-                    </div>
-                  </div>
-
-                  {/* Direct download */}
-                  <PDFDownloadButton
-                    formato={formatoPDF}
-                    numero={savedDoc.numero}
-                    cliente={clienteInfo}
-                    items={calculatedItemsConMargen}
-                    totales={totales}
-                    tipoDocumento={tipoDocumento}
-                    seller={seller}
-                    fileName={`${savedDoc.numero}.pdf`}
-                    label="Descargar PDF"
-                    className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-[oklch(0.090_0.025_255)] font-bold py-3 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
-                  />
-
-                  {/* PDF Preview Dialog */}
-                  <Dialog>
-                    <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3 rounded-xl transition-all text-sm">
-                      <Eye className="w-4 h-4" />
-                      Vista previa PDF
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)] p-0">
-                      {/* Título */}
-                      <div className="px-6 pt-6 pb-4 border-b border-[var(--border-0)]">
-                        <DialogTitle className="text-[var(--text-0)] font-bold text-base">
-                          {savedDoc.numero}
-                        </DialogTitle>
-                        <p className="text-[var(--text-2)] text-xs mt-0.5">Vista previa del documento</p>
-                      </div>
-                      {/* Tabs de plantilla — fila dedicada */}
-                      <div className="flex items-center gap-1 px-6 py-3 border-b border-[var(--border-0)] bg-[var(--surface-2)]/50">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-2)] mr-2">Plantilla:</span>
-                        {(["completo", "resumido", "concatenado"] as const).map((f) => (
-                          <button
-                            key={f}
-                            onClick={() => setFormatoPDF(f)}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
-                              formatoPDF === f
-                                ? "bg-amber-400 text-[oklch(0.090_0.025_255)] shadow-sm"
-                                : "text-[var(--text-1)] hover:text-[var(--text-0)] hover:bg-[var(--surface-2)]"
-                            }`}
-                          >
-                            {f}
-                          </button>
-                        ))}
-                      </div>
-                      {/* Visor */}
-                      <div className="p-5">
-                        <ClientPDFViewer
-                          formato={formatoPDF}
-                          numero={savedDoc.numero}
-                          cliente={clienteInfo}
-                          items={calculatedItemsConMargen}
-                          totales={totales}
-                          tipoDocumento={tipoDocumento}
-                          seller={seller}
-                        />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  {/* Nueva Cotización */}
-                  <button
-                    onClick={handleReset}
-                    className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3 rounded-xl transition-all text-sm"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    {tipoDocumento === "COTIZACION" ? "Nueva Cotización" : "Nueva Factura"}
-                  </button>
-
-                  {/* Ver documento guardado */}
-                  <Link
-                    href={`/documentos/${savedDoc.id}`}
-                    className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-2 transition-colors border border-[var(--border-0)] rounded-xl"
-                  >
-                    Ver {tipoDocumento === "COTIZACION" ? "cotización" : "factura"} guardada →
-                  </Link>
-
-                  {/* Link a cotización origen si aplica */}
-                  {savedDoc.cotizacionOrigenId && savedDoc.cotizacionOrigenNumero && (
-                    <Link
-                      href={`/documentos/${savedDoc.cotizacionOrigenId}`}
-                      className="flex items-center justify-center gap-1.5 text-xs text-teal-500 hover:text-teal-400 font-medium py-1 transition-colors"
-                    >
-                      <FileText className="w-3 h-3" />
-                      Ver cotización origen {savedDoc.cotizacionOrigenNumero}
-                    </Link>
+            ) : (
+              /* ── Default actions ───────────────────────────────── */
+              <div className="space-y-2.5 pt-3">
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-60 disabled:cursor-not-allowed text-[oklch(0.090_0.025_255)] font-bold py-3.5 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
+                >
+                  {isSaving ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                      </svg>
+                      {isEditMode ? "Guardar cambios" : `Guardar ${isLabel}`}
+                    </>
                   )}
+                </button>
 
-                  {/* Ir al inicio */}
-                  <Link
-                    href="/"
-                    className="flex items-center justify-center gap-1.5 text-xs text-[var(--text-2)] hover:text-[var(--text-1)] font-medium py-1.5 transition-colors"
-                  >
-                    ← Volver al inicio
-                  </Link>
-                </div>
-              ) : (
-                /* ── Default actions ───────────────────────────────── */
-                <div className="space-y-2.5">
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 disabled:opacity-60 disabled:cursor-not-allowed text-[oklch(0.090_0.025_255)] font-bold py-3.5 rounded-xl transition-all text-sm shadow-md shadow-amber-400/20"
-                  >
-                    {isSaving ? (
-                      <>
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Guardando...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                        </svg>
-                        {isEditMode ? "Guardar cambios" : `Guardar ${isLabel}`}
-                      </>
-                    )}
-                  </button>
-
-                  <Dialog>
-                    <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3.5 rounded-xl transition-all text-sm">
-                      <Eye className="w-4 h-4" />
-                      Vista Previa PDF
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)] p-0">
-                      {/* Título */}
-                      <div className="px-6 pt-6 pb-4 border-b border-[var(--border-0)]">
-                        <DialogTitle className="text-[var(--text-0)] font-bold text-base">
-                          Vista Previa
-                        </DialogTitle>
-                        <p className="text-[var(--text-2)] text-xs mt-0.5">
-                          {tipoDocumento === "COTIZACION" ? "Cotización" : "Factura"} — sin guardar aún
-                        </p>
-                      </div>
-                      {/* Tabs de plantilla — fila dedicada */}
-                      <div className="flex items-center gap-1 px-6 py-3 border-b border-[var(--border-0)] bg-[var(--surface-2)]/50">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-2)] mr-2">Plantilla:</span>
-                        {(["completo", "resumido", "concatenado"] as const).map((f) => (
-                          <button
-                            key={f}
-                            onClick={() => setFormatoPDF(f)}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
-                              formatoPDF === f
-                                ? "bg-amber-400 text-[oklch(0.090_0.025_255)] shadow-sm"
-                                : "text-[var(--text-1)] hover:text-[var(--text-0)] hover:bg-[var(--surface-2)]"
-                            }`}
-                          >
-                            {f}
-                          </button>
-                        ))}
-                      </div>
-                      {/* Visor */}
-                      <div className="p-5">
-                        <ClientPDFViewer
-                          formato={formatoPDF}
-                          cliente={clienteInfo}
-                          items={calculatedItemsConMargen}
-                          totales={totales}
-                          tipoDocumento={tipoDocumento}
-                          seller={seller}
-                        />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              )}
-            </div>
-
-            {/* Info note */}
-            <div className="mx-5 mb-5 flex items-start gap-2.5 bg-amber-400/5 border border-amber-400/10 rounded-xl p-3">
-              <svg
-                className="w-3.5 h-3.5 text-amber-500/60 shrink-0 mt-0.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <p className="text-xs text-[var(--text-2)] leading-relaxed">
-                Válida por{" "}
-                <span className="text-amber-500/80 font-semibold">15 días</span> calendario
-                desde su generación según políticas comerciales.
-              </p>
-            </div>
+                <Dialog>
+                  <DialogTrigger className="w-full flex items-center justify-center gap-2 bg-[var(--surface-2)] hover:bg-[var(--border-0)] border border-[var(--border-0)] text-[var(--text-1)] hover:text-[var(--text-0)] font-semibold py-3.5 rounded-xl transition-all text-sm">
+                    <Eye className="w-4 h-4" />
+                    Vista Previa PDF
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto bg-[var(--surface-1)] border-[var(--border-0)] p-0">
+                    <div className="px-6 pt-6 pb-4 border-b border-[var(--border-0)]">
+                      <DialogTitle className="text-[var(--text-0)] font-bold text-base">Vista Previa</DialogTitle>
+                      <p className="text-[var(--text-2)] text-xs mt-0.5">
+                        {tipoDocumento === "COTIZACION" ? "Cotización" : "Factura"} — sin guardar aún
+                      </p>
+                    </div>
+                    {pdfTemplateTabs}
+                    <div className="p-5">{pdfViewerContent()}</div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
           </div>
 
-          {/* ── Margen de Ganancia ─────────────────────────────────────────── */}
+          {/* Info note */}
+          <div className="mx-0 flex items-start gap-2.5 bg-amber-400/5 border border-amber-400/10 rounded-xl p-3">
+            <svg className="w-3.5 h-3.5 text-amber-500/60 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-xs text-[var(--text-2)] leading-relaxed">
+              Válida por <span className="text-amber-500/80 font-semibold">15 días</span> calendario
+              desde su generación según políticas comerciales.
+            </p>
+          </div>
+
+          {/* Margen */}
           {!savedDoc && (
-            <div className="bg-[var(--surface-1)] border border-[var(--border-0)] rounded-2xl overflow-hidden">
-              {/* Header */}
-              <div className="px-5 py-4 border-b border-[var(--border-0)] flex items-center gap-2.5">
-                <Percent className="w-4 h-4 text-teal-500" />
-                <h3 className="text-[var(--text-0)] font-semibold text-sm">Margen de Ganancia</h3>
-                <span className="ml-auto flex items-center gap-1 text-[9px] bg-teal-400/10 text-teal-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
-                  <Lock className="w-2.5 h-2.5" />
-                  Solo vendedor
-                </span>
-              </div>
-
-              <div className="p-5 space-y-4">
-                {/* Porcentaje */}
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] block mb-2">
-                    Margen %
-                  </label>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {([0, 10, 15, 'manual'] as const).map((p) => (
-                      <button
-                        key={String(p)}
-                        onClick={() => setMargenPreset(p)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          margenPreset === p
-                            ? 'bg-teal-500 text-white shadow-sm'
-                            : 'bg-[var(--surface-2)] text-[var(--text-1)] hover:text-[var(--text-0)] border border-[var(--border-0)]'
-                        }`}
-                      >
-                        {p === 0 ? 'Ninguno' : p === 'manual' ? 'Manual' : `${p}%`}
-                      </button>
-                    ))}
-                  </div>
-                  {margenPreset === 'manual' && (
-                    <div className="relative mt-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.5"
-                        value={margenManual}
-                        onChange={(e) => setMargenManual(Math.max(0, Number(e.target.value)))}
-                        className={`${inputBase} py-2 pl-3 pr-8`}
-                        placeholder="Ej: 12.5"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-2)] text-xs pointer-events-none">%</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Tipo */}
-                {margenPorcentaje > 0 && (
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] block mb-2">
-                      Aplicar sobre
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {(['base', 'total'] as const).map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setMargenTipo(t)}
-                          className={`py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            margenTipo === t
-                              ? 'bg-teal-500/15 text-teal-500 border border-teal-500/30'
-                              : 'bg-[var(--surface-2)] text-[var(--text-1)] hover:text-[var(--text-0)] border border-[var(--border-0)]'
-                          }`}
-                        >
-                          {t === 'base' ? 'Precio Base' : 'Costo Total'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Redondeo */}
-                {margenPorcentaje > 0 && (
-                  <div>
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-2)] block mb-2">
-                      Redondeo de precio
-                    </label>
-                    <div className="flex gap-1.5">
-                      {([0, 1000, 5000] as const).map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => setMargenRedondeo(r)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            margenRedondeo === r
-                              ? 'bg-teal-500/15 text-teal-500 border border-teal-500/30'
-                              : 'bg-[var(--surface-2)] text-[var(--text-1)] hover:text-[var(--text-0)] border border-[var(--border-0)]'
-                          }`}
-                        >
-                          {r === 0 ? 'Ninguno' : r === 1000 ? '1.000' : '5.000'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Profitability panel */}
-                {margenPorcentaje > 0 && totalesCosto.totalFinal > 0 && (
-                  <div className="bg-teal-400/5 border border-teal-400/15 rounded-xl p-3.5 space-y-2">
-                    <div className="text-[9px] font-black uppercase tracking-widest text-teal-500/70 mb-2.5">
-                      Tu rentabilidad
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[var(--text-1)]">Tu costo</span>
-                      <span className="text-sm font-semibold text-[var(--text-0)]">
-                        ${fmtDec(totalesCosto.totalFinal)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[var(--text-1)]">Precio cliente</span>
-                      <span className="text-sm font-semibold text-teal-500">
-                        ${fmtDec(totales.totalFinal)}
-                      </span>
-                    </div>
-                    <div className="border-t border-teal-400/20 pt-2 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-[var(--text-1)]">Tu ganancia</span>
-                        <span className="text-sm font-bold text-amber-500">
-                          +${fmtDec(ganancia)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-[var(--text-1)]">Margen real</span>
-                        <span className="text-sm font-bold text-[var(--text-0)]">
-                          {margenReal.toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <MargenPanel
+              margenPreset={margenPreset}
+              margenManual={margenManual}
+              margenTipo={margenTipo}
+              margenRedondeo={margenRedondeo}
+              margenPorcentaje={margenPorcentaje}
+              totalesCostoFinal={totalesCosto.totalFinal}
+              totalesFinal={totales.totalFinal}
+              onPresetChange={setMargenPreset}
+              onManualChange={setMargenManual}
+              onTipoChange={setMargenTipo}
+              onRedondeoChange={setMargenRedondeo}
+            />
           )}
-
         </div>
       </div>
     </div>
