@@ -102,8 +102,8 @@ export function calcularItem(item: ItemInput): ItemCalculated {
   const envioNeto = envioBase - promoEnvio;
   const importacion = item.importacionUnitario || 0;
 
-  // Amazon fee SOLO para fuente AMAZON, sobre precio + tax + envío bruto (sin importación)
-  const baseGarantia = item.precioUnitarioBase + tax + envioBase;
+  // Amazon fee SOLO para fuente AMAZON, sobre precio + tax + envío bruto + importación
+  const baseGarantia = item.precioUnitarioBase + tax + envioBase + importacion;
   const amazon = item.fuenteCompra === "AMAZON" ? baseGarantia * AMAZON_RATE : 0;
 
   const costoUnitarioFinal = item.precioUnitarioBase + tax + amazon + envioNeto + importacion;

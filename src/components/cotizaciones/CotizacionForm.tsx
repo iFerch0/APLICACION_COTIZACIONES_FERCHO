@@ -213,15 +213,19 @@ export default function CotizacionForm({
           margenTipo,
           margenRedondeo,
         });
-        if (doc.success) {
+        if (doc.success && doc.document) {
+          const savedData = doc.document;
           toast.success(`${isLabel} guardada exitosamente`);
           setSavedDoc({
-            numero: doc.document.numero,
-            id: doc.document.id,
+            numero: savedData.numero,
+            id: savedData.id,
             totalFinal: totales.totalFinal,
             cotizacionOrigenId: cotizacionOrigenId ?? undefined,
             cotizacionOrigenNumero: cotizacionOrigenNumero ?? undefined,
           });
+        } else {
+          setFormError(doc.error ?? "Error al guardar el documento.");
+          toast.error(doc.error ?? "Error al guardar el documento.");
         }
       }
     } catch {

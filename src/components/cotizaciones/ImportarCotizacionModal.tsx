@@ -226,7 +226,7 @@ export default function ImportarCotizacionModal({ onImport, hasFormData }: Props
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-xs font-bold text-[var(--text-0)]">
-                        ${fmtMoney(cot.totalFinal)}
+                        ${fmtMoney(Number(cot.totalFinal))}
                       </div>
                       <div className="text-[10px] text-[var(--text-2)]">
                         {format(new Date(cot.fecha), "dd MMM yy", { locale: es })}

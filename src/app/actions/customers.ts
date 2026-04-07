@@ -169,7 +169,16 @@ export async function getCustomerById(
       return { success: false };
     }
 
-    return { success: true, customer };
+    // Convertir Decimal de Prisma → number para que coincida con CustomerDetail
+    const mapped: CustomerDetail = {
+      ...customer,
+      documents: customer.documents.map((doc) => ({
+        ...doc,
+        totalFinal: Number(doc.totalFinal),
+      })),
+    };
+
+    return { success: true, customer: mapped };
   } catch (error) {
     console.error("[getCustomerById] Error:", error);
     return { success: false };

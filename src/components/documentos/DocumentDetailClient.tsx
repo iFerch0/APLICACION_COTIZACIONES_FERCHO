@@ -12,30 +12,32 @@ const PDFDownloadButton = dynamic(
 );
 
 export default function DocumentDetailClient({ doc }: { doc: NonNullable<DocumentDetail> }) {
-  const items: ItemCalculated[] = doc.items.map((item) => ({
+  const items: ItemCalculated[] = doc.items.map((item: any) => ({
     id: item.id,
     descripcion: item.descripcion,
     cantidad: item.cantidad,
-    precioUnitarioBase: item.precioUnitarioBase,
+    precioUnitarioBase: Number(item.precioUnitarioBase),
+    tipoItem: (item.tipoItem as "PRODUCTO" | "SERVICIO") ?? "PRODUCTO",
+    fuenteCompra: (item.fuenteCompra as "LOCAL" | "AMAZON" | "EXTERIOR_OTRO") ?? "LOCAL",
     aplicaTax: item.aplicaTax,
-    taxUnitario: item.taxUnitario,
-    envioUnitario: item.envioUnitario,
-    promocionEnvioUnitario: item.promocionEnvioUnitario,
-    importacionUnitario: item.importacionUnitario,
+    taxUnitario: Number(item.taxUnitario),
+    envioUnitario: Number(item.envioUnitario),
+    promocionEnvioUnitario: Number(item.promocionEnvioUnitario),
+    importacionUnitario: Number(item.importacionUnitario),
     aplicaAmazon: item.aplicaAmazon,
-    amazonUnitarioCalculado: item.amazonUnitario,
-    costoUnitarioFinal: item.costoUnitarioFinal,
-    subtotalLinea: item.subtotalLinea,
+    amazonUnitarioCalculado: Number(item.amazonUnitario),
+    costoUnitarioFinal: Number(item.costoUnitarioFinal),
+    subtotalLinea: Number(item.subtotalLinea),
   }));
 
   const totales: DocumentTotals = {
-    subtotal: doc.subtotal,
-    totalTax: doc.totalTax,
-    totalEnvio: doc.totalEnvio,
-    totalPromocionEnvio: doc.totalPromocionEnvio,
-    totalImportacion: doc.totalImportacion,
-    totalAmazon: doc.totalAmazon,
-    totalFinal: doc.totalFinal,
+    subtotal: Number(doc.subtotal),
+    totalTax: Number(doc.totalTax),
+    totalEnvio: Number(doc.totalEnvio),
+    totalPromocionEnvio: Number(doc.totalPromocionEnvio),
+    totalImportacion: Number(doc.totalImportacion),
+    totalAmazon: Number(doc.totalAmazon),
+    totalFinal: Number(doc.totalFinal),
   };
 
   const seller: SellerData = {
