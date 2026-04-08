@@ -58,7 +58,7 @@ export async function saveDocument(data: unknown) {
       seller = await prisma.sellerProfile.create({
         data: {
           nombre: "Fernando Rhenals",
-          email: "ferchotecnico@example.com",
+          email: "rhenalsf@gmail.com",
         },
       });
     }
@@ -150,11 +150,11 @@ export async function getDocuments(params?: {
       ...(params?.tipo ? { tipo: params.tipo } : {}),
       ...(params?.search
         ? {
-            OR: [
-              { numero: { contains: params.search } },
-              { customer: { nombres: { contains: params.search } } },
-            ],
-          }
+          OR: [
+            { numero: { contains: params.search } },
+            { customer: { nombres: { contains: params.search } } },
+          ],
+        }
         : {}),
     },
     include: {
@@ -209,7 +209,7 @@ export async function getDocumentById(id: string) {
     cotizacionOrigen = origen ?? null;
   }
 
-    // Buscar facturas generadas si es cotización
+  // Buscar facturas generadas si es cotización
   let facturasGeneradas: FacturaGeneradaRef[] = [];
   if (doc.tipo === "COTIZACION") {
     const facturas = await prisma.commercialDocument.findMany({
@@ -285,11 +285,11 @@ export async function getCotizacionesParaImportar(search?: string) {
       tipo: "COTIZACION",
       ...(search
         ? {
-            OR: [
-              { numero: { contains: search } },
-              { customer: { nombres: { contains: search } } },
-            ],
-          }
+          OR: [
+            { numero: { contains: search } },
+            { customer: { nombres: { contains: search } } },
+          ],
+        }
         : {}),
     },
     include: {

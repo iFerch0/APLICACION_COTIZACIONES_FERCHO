@@ -274,11 +274,13 @@ export default function CotizacionForm({
     clienteInfo.nombres.trim() !== "" ||
     items.some((i) => i.descripcion.trim() !== "" || i.precioUnitarioBase > 0);
 
+  const pdfNumero = savedDoc?.numero ?? (isEditMode ? editDocument?.documentNumero : undefined);
+
   // ── PDF Viewer Content (shared between preview and saved) ──────────────
   const pdfViewerContent = () => (
     <ClientPDFViewer
       formato={formatoPDF}
-      numero={savedDoc?.numero}
+      numero={pdfNumero}
       cliente={clienteInfo}
       items={calculatedItemsConMargen}
       totales={totales}

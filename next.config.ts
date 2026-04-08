@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
+
+const isVercelDeployment = process.env.VERCEL === "1";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["@prisma/client", "prisma"],
-  assetPrefix: 'https://cotizacion-fercho.vercel.app',
+  assetPrefix: isVercelDeployment ? "https://cotizacion-fercho.vercel.app" : undefined,
   async headers() {
     return [
       {

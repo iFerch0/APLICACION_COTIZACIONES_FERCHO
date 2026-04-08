@@ -15,7 +15,7 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 30,
   },
   logoColumn: {
@@ -287,7 +287,7 @@ export const CotizacionPDF = ({
   numero,
 }: PdfProps) => {
   const isCotizacion = tipoDocumento === 'COTIZACION';
-  const docTitle = isCotizacion ? 'COTIZACIÓN COMERCIAL' : 'FACTURA COMERCIAL';
+  const docTitle = isCotizacion ? 'COTIZACIÓN' : 'FACTURA COMERCIAL';
 
   const docNumber = numero ?? (isCotizacion ? 'BORRADOR' : 'BORRADOR');
   const emissionDate = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
@@ -302,10 +302,10 @@ export const CotizacionPDF = ({
         <View style={styles.headerRow}>
           <View style={styles.logoColumn}>
             <Text style={styles.logoTitle}>
-              {seller?.nombre || 'GLOBAL TECH COMPONENTS'}
+              {seller?.nombre || 'FERCHO TECNICO'}
             </Text>
             <Text style={styles.logoSubtitle}>
-              {seller?.profesion || 'Computer Parts and Custom Gaming PC Builds'}
+              {seller?.profesion || 'Ingeniero de Sistemas'}
             </Text>
           </View>
 
@@ -317,7 +317,7 @@ export const CotizacionPDF = ({
 
           <View style={styles.documentMetaColumn}>
             <Text style={styles.docTitle}>{docTitle}</Text>
-            <Text style={styles.docNit}>NIT: {seller?.identificacion || '901234567-8'}</Text>
+            <Text style={styles.docNit}>NIT: {seller?.identificacion || ''}</Text>
 
             <View style={styles.metaGrid}>
               <Text style={styles.metaText}>
@@ -492,12 +492,12 @@ export const CotizacionPDF = ({
           <Text style={styles.footerTerms}>Garantía estándar según fabricante. La validez de este documento es de 15 días calendario.</Text>
           <View style={styles.footerDivider} />
           <Text style={styles.footerThanks}>
-            Gracias por confiar en <Text style={{ fontWeight: 'bold' }}>{seller?.nombre || 'GLOBAL TECH COMPONENTS'}</Text> {seller?.celular && ` | Tel: ${seller?.celular}`} {seller?.email && ` | ${seller?.email}`}
+            Gracias por confiar en <Text style={{ fontWeight: 'bold' }}>{seller?.nombre || 'FERCHO TECNICO'}</Text> {seller?.celular && ` | Tel: ${seller?.celular}`} {seller?.email && ` | ${seller?.email}`}
           </Text>
         </View>
 
       </Page>
-    </Document>
+    </Document >
   );
 };
 
