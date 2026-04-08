@@ -1,8 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  basePath: '/cotizaciones',
-  assetPrefix: '/cotizaciones',
   reactStrictMode: true,
 
   serverExternalPackages: ["@prisma/client", "prisma"],
