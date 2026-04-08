@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import NavBar from "@/components/layout/NavBar";
 import ThemeProvider from "@/components/layout/ThemeProvider";
+import AccessGate from "@/components/layout/AccessGate";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -25,30 +26,32 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${outfit.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <Toaster
-            position="top-right"
-            richColors
-            closeButton
-            toastOptions={{
-              duration: 4000,
-            }}
-          />
-          <div className="min-h-screen bg-[var(--surface-0)] flex flex-col">
-            <NavBar />
-            <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-6 lg:px-10 py-8">
-              {children}
-            </main>
-            <footer className="border-t border-[var(--border-0)] px-4 sm:px-10 py-4">
-              <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-                <span className="text-[var(--text-2)] text-xs">
-                  CotizaPro &copy; {new Date().getFullYear()}
-                </span>
-                <span className="text-[var(--text-2)] text-xs">
-                  Validez de cotizaciones: 15 días calendario
-                </span>
-              </div>
-            </footer>
-          </div>
+          <AccessGate>
+            <Toaster
+              position="top-right"
+              richColors
+              closeButton
+              toastOptions={{
+                duration: 4000,
+              }}
+            />
+            <div className="min-h-screen bg-[var(--surface-0)] flex flex-col">
+              <NavBar />
+              <main className="flex-1 max-w-[1400px] mx-auto w-full px-4 sm:px-6 lg:px-10 py-8">
+                {children}
+              </main>
+              <footer className="border-t border-[var(--border-0)] px-4 sm:px-10 py-4">
+                <div className="max-w-[1400px] mx-auto flex items-center justify-between">
+                  <span className="text-[var(--text-2)] text-xs">
+                    CotizaPro &copy; {new Date().getFullYear()}
+                  </span>
+                  <span className="text-[var(--text-2)] text-xs">
+                    Validez de cotizaciones: 15 días calendario
+                  </span>
+                </div>
+              </footer>
+            </div>
+          </AccessGate>
         </ThemeProvider>
       </body>
     </html>

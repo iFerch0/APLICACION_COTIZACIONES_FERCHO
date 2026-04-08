@@ -68,6 +68,7 @@ npx prisma migrate deploy
 | Variable | Descripción | Requerida |
 |----------|-------------|-----------|
 | `DATABASE_URL` | URL de conexión a la base de datos | Sí |
+| `NEXT_PUBLIC_APP_ACCESS_PASSWORD` | Contraseña de acceso inicial de la aplicación | No |
 
 Para producción con Supabase:
 ```
