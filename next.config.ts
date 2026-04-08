@@ -1,10 +1,8 @@
 import type { NextConfig } from "next";
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-
   serverExternalPackages: ["@prisma/client", "prisma"],
-
+  assetPrefix: 'https://cotizacion-fercho.vercel.app',
   async headers() {
     return [
       {
@@ -22,5 +20,4 @@ const nextConfig: NextConfig = {
     ];
   },
 };
-
 export default nextConfig;
