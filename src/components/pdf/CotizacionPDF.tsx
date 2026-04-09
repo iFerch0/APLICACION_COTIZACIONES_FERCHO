@@ -275,7 +275,7 @@ interface PdfProps {
   numero?: string;
 }
 
-const fmt = (val: number | { toString(): string }) => `$${Number(val).toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+const fmt = (val: number | { toString(): string }) => `$${Number(val).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
 export const CotizacionPDF = ({
   formato,
@@ -463,13 +463,7 @@ export const CotizacionPDF = ({
               </>
             )}
 
-            {/* Si es resumido o concatenado, solo muestra subtotal general en crudo si quisiera, o directamente el total */}
-            {formato !== 'completo' && (
-              <View style={styles.totalRow}>
-                <Text style={styles.totalRowText}>SUBTOTAL BRUTO:</Text>
-                <Text style={styles.totalRowValue}>{fmt(totales.subtotal)}</Text>
-              </View>
-            )}
+            {/* Si es resumido o concatenado, se ocultó el SUBTOTAL BRUTO por petición */}
 
             <View style={styles.totalFinalBox}>
               <Text style={styles.totalFinalLabel}>TOTAL A PAGAR</Text>
